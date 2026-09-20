@@ -63,3 +63,7 @@ src/index.html        the entire frontend — markup, styles, and app logic
 src-tauri/             Rust side: Tauri config, plugins, and the PDF export command
 deliverables-tracker.html   the original standalone web app this was ported from, kept for reference
 ```
+
+## License
+
+[PolyForm Noncommercial License 1.0.0](LICENSE) — free to use, modify, and redistribute for any noncommercial purpose. Not for commercial use or resale.

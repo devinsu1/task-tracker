@@ -2,6 +2,8 @@
 
 A small, offline desktop task tracker built with [Tauri](https://tauri.app), targeting Linux. It's a straight port of a single-file HTML/CSS/JS web app into a native app, kept deliberately light: vanilla JS, no framework, no bundler, no network access of any kind.
 
+The whole thing was vibe-coded, I'm not a software engineer, I just wanted freedom from paid services and bloated apps.
+
 ## Features
 
 **Workspaces & tasks**

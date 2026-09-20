@@ -7,14 +7,15 @@ A small, offline desktop task tracker built with [Tauri](https://tauri.app), tar
 **Workspaces & tasks**
 - Multiple workspaces (projects), each with its own list of tasks and sub-tasks
 - Due dates, priority (High/Medium/Low), and free-text notes per task
-- Manual reordering (▲/▼) — tasks stay in the order you put them, not an automatic sort
+- Manual reordering — drag a task or sub-task by its handle, or use the ▲/▼ buttons; tasks stay in the order you put them, not an automatic sort. Sub-tasks can only be reordered within their own parent task
+- Deleting a task or sub-task asks for confirmation by default, with a "don't ask again" option and a toolbar toggle to switch back to always-confirm
 - Filter the list by search text, priority, or due-date bucket (Today / This week / Later / No date)
 - Drag-and-drop task reordering between workspaces via the workspace tab bar
 
 **Board (Scrum-lite)**
 - Switch any workspace between **List** view and **Board** view
 - Board view is a Kanban board with To do / In progress / Done columns (column names are editable via *Customize text*)
-- Drag cards between columns to change status; checking a task or its sub-tasks keeps status in sync automatically (completing a sub-task moves the parent to *In progress*, for example)
+- Drag cards between columns to change status, or drag within/between columns to drop a card at a specific position; checking a task or its sub-tasks keeps status in sync automatically (completing a sub-task moves the parent to *In progress*, for example)
 - **Sprints**: create sprints with a name, goal, and start/end dates; assign tasks to a sprint or leave them in the backlog; filter the board/list to a specific sprint; rename or delete sprints from *Manage sprints*
 - **Story points**: set a point estimate per task; each board column shows a running point total
 
@@ -55,6 +56,13 @@ npm run tauri build
 ```
 
 Produces a `.deb`, `.rpm`, and a distro-agnostic `.AppImage` in `src-tauri/target/release/bundle/`. On Arch (or any distro without apt/rpm), use the AppImage, or just build from source — Arch's `webkit2gtk-4.1` and `gtk3` packages are enough.
+
+**Automated releases**: pushing a `v*` tag (e.g. `v0.2.0`) triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds the Linux bundles on GitHub Actions and publishes them as a GitHub Release. Bump the version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` first, then:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
 
 ## Project layout
 

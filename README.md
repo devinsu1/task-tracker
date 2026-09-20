@@ -15,6 +15,7 @@ The whole thing was vibe-coded, I'm not a software engineer, I just wanted freed
 - Drag-and-drop task reordering between workspaces via the workspace tab bar
 
 <img width="1848" height="993" alt="image" src="https://github.com/user-attachments/assets/863a3738-a1af-4209-abdb-c5542abc2ce2" />
+<img width="1844" height="993" alt="image" src="https://github.com/user-attachments/assets/69b6f0f3-eeb4-47a7-8905-e1f5b049e626" />
 
 **Board (Scrum-lite)**
 - Switch any workspace between **List** view and **Board** view

@@ -1,0 +1,56 @@
+name: Release
+
+# Builds and publishes a GitHub Release whenever a version tag (v1.2.3) is
+# pushed — push a tag when a change is ready to ship, and this handles the
+# rest (Linux only for now: .deb, .rpm, .AppImage; the app has no Windows/
+# macOS build yet since the PDF export command is WebKitGTK-specific).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libxdo-dev pkg-config build-essential
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Task Tracker ${{ github.ref_name }}"
+          releaseBody: |
+            See the commit history for what changed in this release.
+
+            - **Debian/Ubuntu**: the `.deb`
+            - **Fedora/RHEL/openSUSE**: the `.rpm`
+            - **Everything else (e.g. Arch)**: the `.AppImage`
+          releaseDraft: false
+          prerelease: false

@@ -249,9 +249,24 @@
     background: none; border: none; color: var(--ink-soft); font-size: 9px; line-height: 1;
     cursor: pointer; padding: 2px 3px; opacity: 0; transition: opacity 0.15s;
   }
-  .item-row:hover .move-btn { opacity: 0.5; }
+  .item-row:hover .move-btn, .sub-item-row:hover .move-btn { opacity: 0.5; }
   .move-btn:hover:not(:disabled) { opacity: 1 !important; color: var(--ink); }
   .move-btn:disabled { visibility: hidden; cursor: default; }
+  .item-move.sub { gap: 0; }
+
+  .drag-handle {
+    flex-shrink: 0; display: flex; align-items: center; color: var(--ink-soft); font-size: 13px;
+    line-height: 1; cursor: grab; touch-action: none; padding: 0 2px; opacity: 0; transition: opacity 0.15s;
+    -webkit-user-select: none; user-select: none;
+  }
+  .item-row:hover .drag-handle, .sub-item-row:hover .drag-handle { opacity: 0.5; }
+  .drag-handle:hover { opacity: 1 !important; color: var(--ink); }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-handle.sub { font-size: 11px; }
+  .item.row-dragging, .sub-item.row-dragging {
+    position: relative; z-index: 30; background: var(--surface); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+  }
 
   .subs { margin: 10px 0 0 32px; padding-left: 12px; border-left: 2px solid var(--line); }
   ul.sub-items { list-style: none; margin: 0; padding: 0; }
@@ -316,8 +331,8 @@
     body { background: #FFFFFF; }
     .toolbar, .workspace-bar, .add-card, .search-row, .filter-row, .delete-btn, .sub-delete, .add-sub-row,
     .progress-track, .progress-percent, .cal-btn, .native-date-hidden, .cal-popover, .overview-panel,
-    .collapse-chevron, .group-count, .toast-container, .no-workspace-state, .item-move,
-    .print-preview-overlay { display: none !important; }
+    .collapse-chevron, .group-count, .toast-container, .no-workspace-state, .item-move, .drag-handle,
+    .print-preview-overlay, .sprint-modal-overlay { display: none !important; }
     .main-layout { display: block !important; }
     .app-shell { max-width: 100%; padding: 0; }
     .workspace-panels { display: block !important; overflow: visible !important; }
@@ -379,7 +394,7 @@
   .print-preview-content .progress-track, .print-preview-content .progress-percent,
   .print-preview-content .cal-btn, .print-preview-content .native-date-hidden,
   .print-preview-content .collapse-chevron, .print-preview-content .group-count,
-  .print-preview-content .item-move { display: none !important; }
+  .print-preview-content .item-move, .print-preview-content .drag-handle { display: none !important; }
   .print-preview-content .board-container { display: none !important; }
   .print-preview-content .panel-list { display: block !important; }
   .print-preview-content .workspace-panel {
@@ -426,7 +441,9 @@
   }
   .board-column-points { font-size: 11px; color: var(--ink-soft); font-weight: 400; }
   .board-cards { display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
-  .board-cards.drag-over { outline: 2px dashed var(--done); outline-offset: -4px; border-radius: 8px; }
+  .board-cards.drag-over { outline: 2px dashed var(--done); outline-offset: 5px; border-radius: 8px; }
+  .board-card.drop-before { box-shadow: 0 -3px 0 0 var(--done); }
+  .board-card.drop-after { box-shadow: 0 3px 0 0 var(--done); }
   .board-card {
     position: relative; background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
     padding: 9px 26px 9px 11px; cursor: grab; font-size: 13px;
@@ -478,6 +495,13 @@
   .sprint-manage-row-name { font-size: 13.5px; color: var(--ink); word-break: break-word; }
   .sprint-manage-row-sub { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
   .sprint-manage-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .delete-confirm-message { font-size: 13px; color: var(--ink); line-height: 1.45; margin: 0 0 14px; }
+  .delete-confirm-checkbox {
+    display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--ink-soft);
+    line-height: 1.4; margin-bottom: 4px; cursor: pointer;
+  }
+  .delete-confirm-checkbox input { margin-top: 2px; flex-shrink: 0; }
+  .delete-confirm-ok { background: var(--danger) !important; }
 
   /* Shared look for every <select> in the app: no native OS widget chrome, but with an
      explicit chevron so it still reads as a dropdown. Declared last so its background-image
@@ -506,6 +530,7 @@
     <span class="app-label editable" contenteditable="false" data-key="appLabel">Task Tracker</span>
     <div class="toolbar-actions">
       <label class="toolbar-toggle"><input type="checkbox" id="includeCompletedToggle" checked><span>Completed in export</span></label>
+      <label class="toolbar-toggle" title="When off, deleting a task or sub-task skips the confirmation prompt."><input type="checkbox" id="confirmDeleteToggle" checked><span>Confirm deletions</span></label>
       <button class="reset-link" id="resetTextBtn" type="button" style="display:none;">Reset text</button>
       <button class="chip-btn" id="customizeBtn" type="button">Customize text</button>
       <button class="chip-btn" id="exportBtn" type="button"><span class="editable" contenteditable="false" data-key="exportBtnLabel">Export PDF</span></button>
@@ -596,6 +621,21 @@
   </div>
 </div>
 
+<div class="sprint-modal-overlay" id="deleteConfirmOverlay" style="display:none;">
+  <div class="sprint-modal delete-confirm-modal">
+    <h3>Delete this?</h3>
+    <p id="deleteConfirmMessage" class="delete-confirm-message"></p>
+    <label class="delete-confirm-checkbox">
+      <input type="checkbox" id="deleteConfirmDontAskAgain">
+      Don't ask me again (you can turn this back on from the "Confirm deletions" toggle in the toolbar)
+    </label>
+    <div class="sprint-modal-actions">
+      <button type="button" id="deleteConfirmCancelBtn" class="chip-btn">Cancel</button>
+      <button type="button" id="deleteConfirmOkBtn" class="primary delete-confirm-ok">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   const WORKSPACES_KEY = 'deliverables-tracker-workspaces';
@@ -604,6 +644,7 @@
   const EXPORT_PREFS_KEY = 'deliverables-tracker-export-prefs';
   const ACTIVITY_KEY = 'deliverables-tracker-activity';
   const ACTIVITY_LIMIT = 300;
+  const DELETE_CONFIRM_KEY = 'deliverables-tracker-delete-confirm';
 
   // ---------- file-backed store (tauri-plugin-store, via raw invoke to avoid a bundler) ----------
   const { invoke } = window.__TAURI__.core;
@@ -741,6 +782,25 @@
     if (activityLog.length > ACTIVITY_LIMIT) activityLog.length = ACTIVITY_LIMIT;
     saveActivityLog();
     renderChangesList();
+  }
+
+  // ---------- delete confirmation preference ----------
+  let confirmBeforeDelete = true;
+  async function loadDeleteConfirmPref() {
+    try {
+      const stored = await storeGet(DELETE_CONFIRM_KEY);
+      if (stored && typeof stored.confirm === 'boolean') confirmBeforeDelete = stored.confirm;
+    } catch (e) {}
+  }
+  function saveDeleteConfirmPref() { storeSet(DELETE_CONFIRM_KEY, { confirm: confirmBeforeDelete }); }
+
+  let deleteConfirmTarget = null;
+  function requestDelete(message, onConfirm) {
+    if (!confirmBeforeDelete) { onConfirm(); return; }
+    deleteConfirmTarget = onConfirm;
+    document.getElementById('deleteConfirmMessage').textContent = message;
+    document.getElementById('deleteConfirmDontAskAgain').checked = false;
+    document.getElementById('deleteConfirmOverlay').style.display = 'flex';
   }
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
@@ -881,6 +941,54 @@
       document.removeEventListener('mousedown', onOutside, true);
       document.removeEventListener('keydown', onKey, true);
     };
+  }
+
+  // Vertical drag-to-reorder: dragging `handleEl` moves `rowEl` among `siblingEls` (the full,
+  // ordered list of row elements for whatever it's allowed to reorder within — a workspace's
+  // pending/done group, or one task's sub-task list), clamped so it can't leave that list.
+  // Only visual during the drag (siblings get a live translateY preview); the actual array
+  // mutation + re-render happens once, in `onCommit(fromIdx, toIdx)`, on release.
+  function attachReorderDrag(handleEl, rowEl, siblingEls, startIndex, onCommit) {
+    if (!handleEl) return;
+    let dragging = false, startY = 0, rowHeight = 0, currentTarget = startIndex;
+    function clampTarget(idx) { return Math.max(0, Math.min(siblingEls.length - 1, idx)); }
+    function applyPreview(targetIndex) {
+      siblingEls.forEach((el, idx) => {
+        if (el === rowEl) return;
+        let offset = 0;
+        if (startIndex < targetIndex && idx > startIndex && idx <= targetIndex) offset = -rowHeight;
+        else if (startIndex > targetIndex && idx >= targetIndex && idx < startIndex) offset = rowHeight;
+        el.style.transform = offset ? 'translateY(' + offset + 'px)' : '';
+      });
+    }
+    handleEl.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      dragging = true; startY = e.clientY; currentTarget = startIndex;
+      rowHeight = rowEl.getBoundingClientRect().height;
+      rowEl.classList.add('row-dragging');
+      siblingEls.forEach(el => { if (el !== rowEl) el.style.transition = 'transform 0.12s ease'; });
+      try { handleEl.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    handleEl.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const rawDy = e.clientY - startY;
+      const minDy = -startIndex * rowHeight;
+      const maxDy = (siblingEls.length - 1 - startIndex) * rowHeight;
+      const dy = Math.max(minDy, Math.min(maxDy, rawDy));
+      rowEl.style.transform = 'translateY(' + dy + 'px)';
+      const targetIndex = clampTarget(startIndex + Math.round(dy / (rowHeight || 1)));
+      if (targetIndex !== currentTarget) { currentTarget = targetIndex; applyPreview(targetIndex); }
+    });
+    function finish() {
+      if (!dragging) return;
+      dragging = false;
+      rowEl.classList.remove('row-dragging');
+      rowEl.style.transform = '';
+      siblingEls.forEach(el => { el.style.transform = ''; el.style.transition = ''; });
+      if (currentTarget !== startIndex) onCommit(startIndex, currentTarget);
+    }
+    handleEl.addEventListener('pointerup', finish);
+    handleEl.addEventListener('pointercancel', finish);
   }
 
   // Reusable masked-text + calendar-icon date field (used by the sprint form).
@@ -1544,6 +1652,27 @@
       return sel;
     }
 
+    // Moves `draggedItem` into `status`'s column, positioned right before/after `targetItem`
+    // (or appended to the end of the column if `targetItem` is null — dropped on empty space).
+    function commitBoardDrop(draggedItem, status, targetItem, insertBefore) {
+      const prevStatus = draggedItem.status;
+      draggedItem.status = status;
+      if (status === 'done') { draggedItem.done = true; if (!draggedItem.completedDate) draggedItem.completedDate = todayIso(); }
+      else { draggedItem.done = false; draggedItem.completedDate = null; }
+      const absFrom = ws.items.indexOf(draggedItem);
+      if (absFrom !== -1) ws.items.splice(absFrom, 1);
+      if (targetItem && targetItem !== draggedItem) {
+        const absTarget = ws.items.indexOf(targetItem);
+        ws.items.splice(insertBefore ? absTarget : absTarget + 1, 0, draggedItem);
+      } else {
+        ws.items.push(draggedItem);
+      }
+      saveWorkspaces(); renderList(); renderOverview();
+      if (prevStatus !== status) {
+        logActivity('task', 'Moved "' + draggedItem.title + '" to ' + labels[STATUS_LABEL_KEY[status]], ws.name);
+      }
+    }
+
     function buildBoardCard(item) {
       const card = document.createElement('div'); card.className = 'board-card'; card.draggable = true;
       card.addEventListener('dragstart', e => {
@@ -1556,22 +1685,28 @@
         }
       });
       card.addEventListener('dragend', () => { dragCardItem = null; card.classList.remove('dragging'); });
+      card.addEventListener('dragover', e => {
+        e.preventDefault(); e.stopPropagation();
+        if (!dragCardItem || dragCardItem === item) return;
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        const before = (e.clientY - card.getBoundingClientRect().top) < card.getBoundingClientRect().height / 2;
+        card.classList.toggle('drop-before', before);
+        card.classList.toggle('drop-after', !before);
+      });
+      card.addEventListener('dragleave', () => { card.classList.remove('drop-before', 'drop-after'); });
+      card.addEventListener('drop', e => {
+        e.preventDefault(); e.stopPropagation();
+        const before = card.classList.contains('drop-before');
+        card.classList.remove('drop-before', 'drop-after');
+        if (!dragCardItem || dragCardItem === item) return;
+        commitBoardDrop(dragCardItem, item.status, item, before);
+      });
 
       const del = document.createElement('button');
       del.className = 'board-card-delete'; del.setAttribute('aria-label', 'Delete task'); del.textContent = '×';
       del.setAttribute('draggable', 'false');
       del.addEventListener('mousedown', e => e.stopPropagation());
-      del.addEventListener('click', () => {
-        const idx = ws.items.findIndex(i => i.id === item.id);
-        const removed = ws.items[idx];
-        ws.items = ws.items.filter(i => i.id !== item.id);
-        saveWorkspaces(); renderList(); renderOverview();
-        logActivity('delete', 'Deleted "' + removed.title + '"', ws.name);
-        showUndoToast('Deleted "' + removed.title + '"', () => {
-          ws.items.splice(idx, 0, removed); saveWorkspaces(); renderList(); renderOverview();
-          logActivity('undo', 'Undid delete of "' + removed.title + '"', ws.name);
-        });
-      });
+      del.addEventListener('click', () => requestDelete('Delete "' + item.title + '"?', () => deleteItemNow(item)));
       card.appendChild(del);
 
       const title = document.createElement('div');
@@ -1632,14 +1767,7 @@
           e.preventDefault();
           cardsWrap.classList.remove('drag-over');
           if (!dragCardItem) return;
-          const prevStatus = dragCardItem.status;
-          dragCardItem.status = status;
-          if (status === 'done') { dragCardItem.done = true; if (!dragCardItem.completedDate) dragCardItem.completedDate = todayIso(); }
-          else { dragCardItem.done = false; dragCardItem.completedDate = null; }
-          saveWorkspaces(); renderList(); renderOverview();
-          if (prevStatus !== status) {
-            logActivity('task', 'Moved "' + dragCardItem.title + '" to ' + labels[STATUS_LABEL_KEY[status]], ws.name);
-          }
+          commitBoardDrop(dragCardItem, status, null, false);
         });
 
         if (colItems.length === 0) {
@@ -1724,56 +1852,93 @@
       return span;
     }
 
+    function deleteSubNow(item, sub) {
+      const idx = item.subs.findIndex(s => s.id === sub.id);
+      const removed = item.subs[idx];
+      item.subs = item.subs.filter(s => s.id !== sub.id);
+      saveWorkspaces(); renderList();
+      logActivity('delete', 'Deleted sub-task "' + removed.title + '"', ws.name);
+      showUndoToast('Deleted "' + removed.title + '"', () => {
+        item.subs.splice(idx, 0, removed); saveWorkspaces(); renderList();
+        logActivity('undo', 'Undid delete of sub-task "' + removed.title + '"', ws.name);
+      });
+    }
+
+    function buildSubEl(item, sub, subsIdx) {
+      const li = document.createElement('li'); li.className = 'sub-item' + (sub.done ? ' done' : '');
+      const row = document.createElement('div'); row.className = 'sub-item-row';
+
+      const dragHandle = document.createElement('span');
+      dragHandle.className = 'drag-handle sub'; dragHandle.setAttribute('aria-hidden', 'true'); dragHandle.textContent = '⠿';
+
+      const moveWrap = document.createElement('div'); moveWrap.className = 'item-move sub';
+      const upBtn = document.createElement('button');
+      upBtn.type = 'button'; upBtn.className = 'move-btn'; upBtn.setAttribute('aria-label', 'Move sub-task up'); upBtn.textContent = '▲';
+      upBtn.disabled = subsIdx <= 0;
+      upBtn.addEventListener('click', () => moveSub(item, sub, -1));
+      const downBtn = document.createElement('button');
+      downBtn.type = 'button'; downBtn.className = 'move-btn'; downBtn.setAttribute('aria-label', 'Move sub-task down'); downBtn.textContent = '▼';
+      downBtn.disabled = subsIdx >= item.subs.length - 1;
+      downBtn.addEventListener('click', () => moveSub(item, sub, 1));
+      moveWrap.appendChild(upBtn); moveWrap.appendChild(downBtn);
+
+      const cb = document.createElement('button');
+      cb.className = 'checkbox sub' + (sub.done ? ' done' : '');
+      cb.setAttribute('aria-label', sub.done ? 'Mark sub-task incomplete' : 'Mark sub-task complete');
+      cb.innerHTML = checkSvg();
+      cb.addEventListener('click', () => {
+        sub.done = !sub.done; syncItemStatus(item); saveWorkspaces(); renderList();
+        logActivity('task', (sub.done ? 'Completed' : 'Reopened') + ' sub-task "' + sub.title + '"', ws.name);
+      });
+
+      const t = document.createElement('div');
+      t.className = 'sub-title'; t.contentEditable = 'true'; t.textContent = sub.title;
+      t.addEventListener('blur', () => {
+        const oldTitle = sub.title;
+        sub.title = t.textContent.trim() || sub.title; t.textContent = sub.title; saveWorkspaces();
+        if (sub.title !== oldTitle) logActivity('text', 'Renamed sub-task "' + oldTitle + '" to "' + sub.title + '"', ws.name);
+      });
+      bindEnterToBlur(t); bindPasteAsPlainText(t);
+
+      const del = document.createElement('button');
+      del.className = 'sub-delete'; del.setAttribute('aria-label', 'Delete sub-task'); del.textContent = '×';
+      del.addEventListener('click', () => requestDelete('Delete sub-task "' + sub.title + '"?', () => deleteSubNow(item, sub)));
+
+      row.appendChild(dragHandle); row.appendChild(moveWrap); row.appendChild(cb); row.appendChild(t); row.appendChild(del);
+      li.appendChild(row);
+
+      const metaRow = document.createElement('div'); metaRow.className = 'sub-item-meta';
+      const dueWrap = document.createElement('span');
+      dueWrap.appendChild(buildDateControl(sub, 'due', '_editingDue', 'Due ', true, 'Set due date', ''));
+      metaRow.appendChild(dueWrap);
+      metaRow.appendChild(buildPrioritySelectFor(sub, true));
+      li.appendChild(metaRow);
+      li._dragHandle = dragHandle;
+      return li;
+    }
+
+    function moveSub(item, sub, direction) {
+      const idx = item.subs.indexOf(sub);
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= item.subs.length) return;
+      const tmp = item.subs[idx]; item.subs[idx] = item.subs[targetIdx]; item.subs[targetIdx] = tmp;
+      saveWorkspaces(); renderList();
+    }
+
     function buildSubsEl(item) {
       const wrap = document.createElement('div'); wrap.className = 'subs';
       const ul = document.createElement('ul'); ul.className = 'sub-items';
-      item.subs.forEach(sub => {
-        const li = document.createElement('li'); li.className = 'sub-item' + (sub.done ? ' done' : '');
-        const row = document.createElement('div'); row.className = 'sub-item-row';
-
-        const cb = document.createElement('button');
-        cb.className = 'checkbox sub' + (sub.done ? ' done' : '');
-        cb.setAttribute('aria-label', sub.done ? 'Mark sub-task incomplete' : 'Mark sub-task complete');
-        cb.innerHTML = checkSvg();
-        cb.addEventListener('click', () => {
-          sub.done = !sub.done; syncItemStatus(item); saveWorkspaces(); renderList();
-          logActivity('task', (sub.done ? 'Completed' : 'Reopened') + ' sub-task "' + sub.title + '"', ws.name);
-        });
-
-        const t = document.createElement('div');
-        t.className = 'sub-title'; t.contentEditable = 'true'; t.textContent = sub.title;
-        t.addEventListener('blur', () => {
-          const oldTitle = sub.title;
-          sub.title = t.textContent.trim() || sub.title; t.textContent = sub.title; saveWorkspaces();
-          if (sub.title !== oldTitle) logActivity('text', 'Renamed sub-task "' + oldTitle + '" to "' + sub.title + '"', ws.name);
-        });
-        bindEnterToBlur(t); bindPasteAsPlainText(t);
-
-        const del = document.createElement('button');
-        del.className = 'sub-delete'; del.setAttribute('aria-label', 'Delete sub-task'); del.textContent = '×';
-        del.addEventListener('click', () => {
-          const idx = item.subs.findIndex(s => s.id === sub.id);
-          const removed = item.subs[idx];
-          item.subs = item.subs.filter(s => s.id !== sub.id);
+      const liEls = item.subs.map((sub, idx) => buildSubEl(item, sub, idx));
+      liEls.forEach(li => ul.appendChild(li));
+      // Sub-tasks can only reorder within their own parent task's list — `liEls` here is
+      // exactly that list, nothing from any other task, so bounds-clamping in
+      // attachReorderDrag already keeps a sub-task from sliding out of its task.
+      item.subs.forEach((sub, idx) => {
+        attachReorderDrag(liEls[idx]._dragHandle, liEls[idx], liEls, idx, (fromIdx, toIdx) => {
+          const [moved] = item.subs.splice(fromIdx, 1);
+          item.subs.splice(toIdx, 0, moved);
           saveWorkspaces(); renderList();
-          logActivity('delete', 'Deleted sub-task "' + removed.title + '"', ws.name);
-          showUndoToast('Deleted "' + removed.title + '"', () => {
-            item.subs.splice(idx, 0, removed); saveWorkspaces(); renderList();
-            logActivity('undo', 'Undid delete of sub-task "' + removed.title + '"', ws.name);
-          });
         });
-
-        row.appendChild(cb); row.appendChild(t); row.appendChild(del);
-        li.appendChild(row);
-
-        const metaRow = document.createElement('div'); metaRow.className = 'sub-item-meta';
-        const dueWrap = document.createElement('span');
-        dueWrap.appendChild(buildDateControl(sub, 'due', '_editingDue', 'Due ', true, 'Set due date', ''));
-        metaRow.appendChild(dueWrap);
-        metaRow.appendChild(buildPrioritySelectFor(sub, true));
-        li.appendChild(metaRow);
-
-        ul.appendChild(li);
       });
       wrap.appendChild(ul);
 
@@ -1830,6 +1995,9 @@
     function buildItemEl(item, list) {
       const li = document.createElement('li'); li.className = 'item' + (item.done ? ' done' : '');
       const row = document.createElement('div'); row.className = 'item-row';
+
+      const dragHandle = document.createElement('span');
+      dragHandle.className = 'drag-handle'; dragHandle.setAttribute('aria-hidden', 'true'); dragHandle.textContent = '⠿';
 
       const idxInList = list.indexOf(item);
       const moveWrap = document.createElement('div'); moveWrap.className = 'item-move';
@@ -1892,27 +2060,46 @@
 
       const del = document.createElement('button');
       del.className = 'delete-btn'; del.setAttribute('aria-label', 'Delete task'); del.textContent = '×';
-      del.addEventListener('click', () => {
-        const idx = ws.items.findIndex(i => i.id === item.id);
-        const removed = ws.items[idx];
-        ws.items = ws.items.filter(i => i.id !== item.id);
-        saveWorkspaces(); renderList(); renderOverview();
-        logActivity('delete', 'Deleted "' + removed.title + '"', ws.name);
-        showUndoToast('Deleted "' + removed.title + '"', () => {
-          ws.items.splice(idx, 0, removed); saveWorkspaces(); renderList(); renderOverview();
-          logActivity('undo', 'Undid delete of "' + removed.title + '"', ws.name);
-        });
-      });
+      del.addEventListener('click', () => requestDelete('Delete "' + item.title + '"?', () => deleteItemNow(item)));
 
-      row.appendChild(moveWrap); row.appendChild(cb); row.appendChild(body); row.appendChild(del);
+      row.appendChild(dragHandle); row.appendChild(moveWrap); row.appendChild(cb); row.appendChild(body); row.appendChild(del);
       li.appendChild(row);
       li.appendChild(buildSubsEl(item));
+      li._dragHandle = dragHandle;
       return li;
+    }
+
+    function deleteItemNow(item) {
+      const idx = ws.items.findIndex(i => i.id === item.id);
+      const removed = ws.items[idx];
+      ws.items = ws.items.filter(i => i.id !== item.id);
+      saveWorkspaces(); renderList(); renderOverview();
+      logActivity('delete', 'Deleted "' + removed.title + '"', ws.name);
+      showUndoToast('Deleted "' + removed.title + '"', () => {
+        ws.items.splice(idx, 0, removed); saveWorkspaces(); renderList(); renderOverview();
+        logActivity('undo', 'Undid delete of "' + removed.title + '"', ws.name);
+      });
+    }
+
+    function commitItemReorder(list, item, fromIdx, toIdx) {
+      if (fromIdx === toIdx) return;
+      const targetSibling = list[toIdx];
+      const absFrom = ws.items.indexOf(item);
+      ws.items.splice(absFrom, 1);
+      const absTarget = ws.items.indexOf(targetSibling);
+      ws.items.splice(toIdx > fromIdx ? absTarget + 1 : absTarget, 0, item);
+      saveWorkspaces(); renderList(); renderOverview();
     }
 
     function buildItemsList(list) {
       const ul = document.createElement('ul'); ul.className = 'items';
-      list.forEach(item => ul.appendChild(buildItemEl(item, list)));
+      const liEls = list.map(item => buildItemEl(item, list));
+      liEls.forEach(li => ul.appendChild(li));
+      // Wired in a second pass since the drag needs every sibling row's element up front
+      // (for bounds-clamping and the live reorder preview), not just the one being dragged.
+      list.forEach((item, idx) => {
+        attachReorderDrag(liEls[idx]._dragHandle, liEls[idx], liEls, idx, (fromIdx, toIdx) => commitItemReorder(list, item, fromIdx, toIdx));
+      });
       return ul;
     }
 
@@ -2330,6 +2517,34 @@
     saveExportPrefs(includeCompletedToggle.checked);
   });
 
+  const confirmDeleteToggle = document.getElementById('confirmDeleteToggle');
+  confirmDeleteToggle.addEventListener('change', () => {
+    confirmBeforeDelete = confirmDeleteToggle.checked;
+    saveDeleteConfirmPref();
+  });
+
+  document.getElementById('deleteConfirmCancelBtn').addEventListener('click', () => {
+    document.getElementById('deleteConfirmOverlay').style.display = 'none';
+    deleteConfirmTarget = null;
+  });
+  document.getElementById('deleteConfirmOkBtn').addEventListener('click', () => {
+    if (!deleteConfirmTarget) return;
+    if (document.getElementById('deleteConfirmDontAskAgain').checked) {
+      confirmBeforeDelete = false; saveDeleteConfirmPref(); confirmDeleteToggle.checked = false;
+    }
+    const cb = deleteConfirmTarget;
+    deleteConfirmTarget = null;
+    document.getElementById('deleteConfirmOverlay').style.display = 'none';
+    cb();
+  });
+  document.getElementById('deleteConfirmOverlay').addEventListener('click', e => {
+    if (e.target.id === 'deleteConfirmOverlay') { e.target.style.display = 'none'; deleteConfirmTarget = null; }
+  });
+  document.addEventListener('keydown', e => {
+    const overlay = document.getElementById('deleteConfirmOverlay');
+    if (e.key === 'Escape' && overlay.style.display !== 'none') { overlay.style.display = 'none'; deleteConfirmTarget = null; }
+  });
+
   const themeToggle = document.getElementById('themeToggle');
   async function applyStoredTheme() {
     let theme;
@@ -2364,6 +2579,8 @@
     await loadLabels();
     await loadWorkspaces();
     await loadActivityLog();
+    await loadDeleteConfirmPref();
+    confirmDeleteToggle.checked = confirmBeforeDelete;
     renderApp();
     renderChangesList();
   })();

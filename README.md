@@ -12,6 +12,8 @@ A small, offline desktop task tracker built with [Tauri](https://tauri.app), tar
 - Filter the list by search text, priority, or due-date bucket (Today / This week / Later / No date)
 - Drag-and-drop task reordering between workspaces via the workspace tab bar
 
+<img width="1848" height="993" alt="image" src="https://github.com/user-attachments/assets/863a3738-a1af-4209-abdb-c5542abc2ce2" />
+
 **Board (Scrum-lite)**
 - Switch any workspace between **List** view and **Board** view
 - Board view is a Kanban board with To do / In progress / Done columns (column names are editable via *Customize text*)
@@ -19,18 +21,27 @@ A small, offline desktop task tracker built with [Tauri](https://tauri.app), tar
 - **Sprints**: create sprints with a name, goal, and start/end dates; assign tasks to a sprint or leave them in the backlog; filter the board/list to a specific sprint; rename or delete sprints from *Manage sprints*
 - **Story points**: set a point estimate per task; each board column shows a running point total
 
+<img width="1848" height="993" alt="image" src="https://github.com/user-attachments/assets/cd1106cb-a951-485a-a270-0586cffede1a" />
+
 **Changes log**
 - The sidebar has an "Overview" tab (upcoming tasks across all workspaces) and a "Changes" tab
 - Changes tracks additions, completions, edits, deletions (with undo), and sprint/board changes, with a filter for Task related / Text edits / Deletions / Undos / Everything
+
+<img width="384" height="993" alt="image" src="https://github.com/user-attachments/assets/556ebb82-7c11-4c66-8ab4-9e47032c3752" />
 
 **Export**
 - **Export PDF**: opens an in-app preview first (since there's no OS print dialog involved), with a toggle between a plain **Task list** report and a **Scrum** report grouped by board status, and a sprint picker to scope the export to one sprint, the backlog, or everything. Saving goes straight to a native "Save As" file dialog — the PDF is written directly, no print dialog appears.
 - **Export/Import backup**: a JSON snapshot of all workspaces and labels, via native file dialogs.
 
+<img width="1844" height="993" alt="image" src="https://github.com/user-attachments/assets/76593f4a-a77a-47c3-9eec-17ee9e55a861" />
+<img width="1844" height="993" alt="image" src="https://github.com/user-attachments/assets/7ca8e652-d61f-448d-82e6-6b66244b0a98" />
+
 **Everything else**
 - Light/dark theme (follows the OS by default, toggleable)
 - All on-screen labels are editable in place via *Customize text*
 - 100% offline — no analytics, no update checks, no network calls of any kind
+
+<img width="1844" height="993" alt="image" src="https://github.com/user-attachments/assets/9fad5ec2-7178-4ff8-9dcb-b201f4e27f7f" />
 
 ## How it's built
 

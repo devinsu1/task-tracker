@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .claude
+PROJECT_BRIEF.md
 
 # Editor directories and files
 .vscode/*

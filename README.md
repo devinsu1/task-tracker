@@ -62,5 +62,4 @@ Produces a `.deb`, `.rpm`, and a distro-agnostic `.AppImage` in `src-tauri/targe
 src/index.html        the entire frontend — markup, styles, and app logic
 src-tauri/             Rust side: Tauri config, plugins, and the PDF export command
 deliverables-tracker.html   the original standalone web app this was ported from, kept for reference
-PROJECT_BRIEF.md       the brief this port was built against
 ```

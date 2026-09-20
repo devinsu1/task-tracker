@@ -1,0 +1,2373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Task Tracker</title>
+<style>
+  :root {
+    --paper: #EEF1EE;
+    --surface: #FFFFFF;
+    --ink: #1B2422;
+    --ink-soft: #5B6864;
+    --line: #CBD3CC;
+    --done: #2F6F4E;
+    --done-soft: #E4EEE6;
+    --pending: #B0562A;
+    --danger: #B0562A;
+    --priority-high: #B0562A;
+    --priority-medium: #A9821F;
+    --priority-low: #4C6B8A;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14181A; --surface: #1C2224; --ink: #E9EDEB; --ink-soft: #93A19C;
+      --line: #333C39; --done: #6FBE93; --done-soft: #22322A; --pending: #E08A57; --danger: #E08A57;
+      --priority-high: #E08A57; --priority-medium: #D9B25C; --priority-low: #7FA3C4;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14181A; --surface: #1C2224; --ink: #E9EDEB; --ink-soft: #93A19C;
+    --line: #333C39; --done: #6FBE93; --done-soft: #22322A; --pending: #E08A57; --danger: #E08A57;
+    --priority-high: #E08A57; --priority-medium: #D9B25C; --priority-low: #7FA3C4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    min-height: 100%;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app-shell { max-width: 1560px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .app-label { font-size: 13px; color: var(--ink-soft); letter-spacing: 0.02em; }
+  .toolbar-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .chip-btn {
+    background: none; border: 1px solid var(--line); border-radius: 20px; color: var(--ink-soft);
+    font-size: 12px; font-family: inherit; padding: 5px 12px; cursor: pointer;
+  }
+  .chip-btn:hover { border-color: var(--ink-soft); }
+  .chip-btn.active { border-color: var(--done); color: var(--done); }
+  .reset-link {
+    background: none; border: none; color: var(--ink-soft); font-size: 12px; text-decoration: underline;
+    cursor: pointer; padding: 5px 4px; font-family: inherit;
+  }
+  .toolbar-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-soft); cursor: pointer; }
+  .toolbar-toggle input { cursor: pointer; }
+
+  .workspace-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 22px 0 30px; }
+  .ws-chip {
+    display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 20px;
+    padding: 6px 6px 6px 14px; font-size: 13px; color: var(--ink-soft); background: var(--surface);
+    cursor: grab; user-select: none;
+  }
+  .ws-chip.active { border-color: var(--done); color: var(--ink); background: var(--done-soft); }
+  .ws-chip.drag-over { box-shadow: inset 0 0 0 1px var(--done); }
+  .ws-chip-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-chip-badge {
+    background: var(--danger); color: var(--surface); font-size: 10px; font-weight: 600; border-radius: 10px;
+    min-width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 4px; margin-left: 6px;
+  }
+  .ws-chip-actions { display: flex; opacity: 0; transition: opacity 0.15s; margin-left: 2px; }
+  .ws-chip:hover .ws-chip-actions { opacity: 0.75; }
+  .ws-chip-icon-btn { background: none; border: none; color: inherit; font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; display: inline-flex; align-items: center; }
+  .ws-chip-icon-btn svg { width: 13px; height: 13px; }
+  .ws-chip-icon-btn:hover { color: var(--ink); }
+  .ws-chip-icon-btn.danger:hover { color: var(--danger); }
+  .ws-new-btn {
+    border: 1px dashed var(--line); border-radius: 20px; padding: 6px 14px; font-size: 13px;
+    color: var(--ink-soft); background: none; cursor: pointer; font-family: inherit;
+  }
+  .ws-new-btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+
+  .main-layout { display: flex; gap: 26px; align-items: flex-start; }
+
+  .overview-panel {
+    width: 270px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface);
+    padding: 22px 20px; position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto;
+  }
+  .overview-title { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 500; font-size: 19px; margin: 0 0 4px; border-radius: 3px; padding: 1px 3px; margin-left: -3px; }
+  .overview-title:focus { outline: 1px solid var(--done); background: var(--paper); }
+  .overview-subtitle { font-size: 11.5px; color: var(--ink-soft); margin: 0 0 16px; }
+  .overview-heading { font-size: 12px; font-weight: 600; color: var(--ink-soft); margin: 16px 0 6px; }
+  .overview-heading:first-of-type { margin-top: 0; }
+  .overview-row {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; text-align: left;
+    background: none; border: none; border-bottom: 1px solid var(--line); padding: 8px 2px; cursor: pointer; font-family: inherit;
+  }
+  .overview-row:hover { background: var(--paper); }
+  .overview-item-title { font-size: 13px; color: var(--ink); }
+  .overview-item-meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ink-soft); flex-wrap: wrap; }
+  .overview-ws-tag { background: var(--done-soft); color: var(--done); border-radius: 10px; padding: 1px 7px; }
+  .overview-date { font-variant-numeric: tabular-nums; }
+  .overview-date.overdue { color: var(--danger); }
+  .overview-empty { font-size: 13px; color: var(--ink-soft); padding: 8px 0; }
+  .sidebar-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .sidebar-tab-btn.active { border-color: var(--done); color: var(--done); }
+  #changesFilterSelect { width: 100%; margin-bottom: 12px; box-sizing: border-box; }
+  .change-row { display: flex; flex-direction: column; gap: 3px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+  .change-row:last-child { border-bottom: none; }
+  .change-message { font-size: 12.5px; color: var(--ink); line-height: 1.4; }
+  .change-meta { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--ink-soft); flex-wrap: wrap; }
+  .change-type-tag { border-radius: 10px; padding: 1px 7px; background: var(--paper); }
+  .change-type-tag.task { background: var(--done-soft); color: var(--done); }
+  .change-type-tag.delete { background: var(--done-soft); color: var(--danger); }
+  .change-type-tag.undo { background: var(--paper); color: var(--priority-medium); }
+
+  .workspace-panels { display: flex; gap: 26px; align-items: flex-start; overflow-x: auto; padding-bottom: 12px; flex: 1 1 auto; min-width: 0; }
+  .workspace-panel {
+    flex: 1 1 380px; min-width: 320px; max-width: 480px;
+    border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 28px 24px 32px;
+  }
+  .workspace-panels.stretch .workspace-panel { flex: 1 1 0; max-width: none; padding-left: 20px; padding-right: 20px; }
+
+  .panel-title {
+    font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 500;
+    font-size: 27px; margin: 0 0 18px -3px; letter-spacing: -0.01em; border-radius: 3px; padding: 1px 3px;
+  }
+  .panel-title:focus { outline: 1px solid var(--done); background: var(--paper); }
+
+  .progress-line { margin-top: 4px; }
+  .progress-track { height: 6px; width: 100%; background: var(--line); border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--done); border-radius: 4px; transition: width 0.4s ease; }
+  .progress-caption { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: var(--ink-soft); }
+
+  .add-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin: 24px 0 16px; background: var(--surface); }
+  .add-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .add-row input[type="text"].title-input { flex: 1 1 160px; min-width: 0; }
+  input[type="text"], select {
+    padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+    color: var(--ink); font-family: inherit; font-size: 14.5px;
+  }
+  input[type="text"]:focus, select:focus { outline: none; border-color: var(--done); }
+  .search-row { margin: 0 0 12px; }
+  .filter-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 20px; }
+  .filter-group { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-chip { font-size: 11.5px; padding: 4px 10px; }
+  .search-input { width: 100%; }
+  .date-input { width: 118px; font-variant-numeric: tabular-nums; }
+  .date-input.invalid { border-color: var(--danger); }
+  .date-edit-wrap { display: inline-flex; align-items: center; gap: 4px; }
+  .cal-btn {
+    background: none; border: 1px solid var(--line); border-radius: 6px; width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center; color: var(--ink-soft);
+    cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .cal-btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .cal-btn svg { width: 14px; height: 14px; }
+  .native-date-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; border: 0; padding: 0; margin: 0; }
+  .cal-popover {
+    position: fixed; z-index: 4000; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); padding: 10px; width: 232px;
+    font-size: 12.5px; color: var(--ink);
+  }
+  .cal-pop-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-pop-label { font-weight: 600; }
+  .cal-nav {
+    background: none; border: 1px solid var(--line); border-radius: 6px; width: 24px; height: 24px;
+    color: var(--ink-soft); cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1;
+  }
+  .cal-nav:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .cal-pop-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-pop-dow { text-align: center; color: var(--ink-soft); font-size: 10.5px; padding: 2px 0 4px; }
+  .cal-pop-day {
+    background: none; border: 1px solid transparent; border-radius: 6px; color: var(--ink);
+    font-family: inherit; font-size: 12px; padding: 5px 0; cursor: pointer;
+  }
+  .cal-pop-day:hover { border-color: var(--line); }
+  .cal-pop-day.is-today { color: var(--done); font-weight: 600; }
+  .cal-pop-day.is-selected { background: var(--done-soft); border-color: var(--done); color: var(--done); }
+  .cal-pop-footer { display: flex; justify-content: flex-end; margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .cal-pop-today {
+    background: none; border: 1px solid var(--line); border-radius: 20px; color: var(--ink-soft);
+    font-family: inherit; font-size: 11.5px; padding: 4px 10px; cursor: pointer;
+  }
+  .cal-pop-today:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .priority-select { width: 112px; color: var(--ink-soft); }
+  .priority-select[data-val="high"] { color: var(--priority-high); }
+  .priority-select[data-val="medium"] { color: var(--priority-medium); }
+  .priority-select[data-val="low"] { color: var(--priority-low); }
+  .add-row button.primary {
+    padding: 11px 18px; border: none; border-radius: 8px; background: var(--ink); color: var(--paper);
+    font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  }
+  .add-row button.primary:hover { opacity: 0.85; }
+
+  .group-label { font-size: 13px; color: var(--ink-soft); margin: 26px 0 10px; }
+  .group-label-row { display: flex; align-items: center; gap: 6px; margin: 26px 0 10px; }
+  .collapse-chevron { background: none; border: none; color: var(--ink-soft); font-size: 11px; cursor: pointer; padding: 2px; line-height: 1; }
+  .collapse-chevron:hover { color: var(--ink); }
+  .group-count { font-size: 12px; color: var(--ink-soft); }
+
+  ul.items { list-style: none; margin: 0; padding: 0; }
+  .item { padding: 14px 2px; border-bottom: 1px solid var(--line); }
+  .item:first-child { border-top: 1px solid var(--line); }
+  .item-row { display: flex; align-items: flex-start; gap: 12px; }
+
+  .checkbox {
+    flex-shrink: 0; width: 20px; height: 20px; margin-top: 2px; border: 1.5px solid var(--ink-soft);
+    border-radius: 5px; background: var(--surface); cursor: pointer; display: flex; align-items: center;
+    justify-content: center; padding: 0;
+  }
+  .checkbox.sub { width: 16px; height: 16px; margin-top: 1px; }
+  .checkbox.done { background: var(--done); border-color: var(--done); }
+  .checkbox svg { width: 12px; height: 12px; opacity: 0; }
+  .checkbox.sub svg { width: 9px; height: 9px; }
+  .checkbox.done svg { opacity: 1; }
+
+  .item-body { flex: 1; min-width: 0; }
+  .item-title { font-size: 15.5px; line-height: 1.4; word-break: break-word; border-radius: 3px; padding: 1px 3px; margin: -1px -3px; }
+  .item-title:focus { outline: 1px solid var(--done); background: var(--surface); }
+  .item.done > .item-row > .item-body > .item-title {
+    color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--line);
+  }
+  .item-meta { display: flex; align-items: center; gap: 10px; margin-top: 5px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); }
+  .due-badge { cursor: pointer; border-bottom: 1px dotted var(--line); font-variant-numeric: tabular-nums; }
+  .due-badge.overdue { color: var(--danger); border-bottom-color: var(--danger); }
+  .due-print-text { display: none; }
+  .priority-print-text { display: none; }
+  .sub-progress { color: var(--ink-soft); }
+
+  .delete-btn {
+    flex-shrink: 0; background: none; border: none; color: var(--ink-soft); font-size: 18px; line-height: 1;
+    cursor: pointer; padding: 2px 4px; opacity: 0; transition: opacity 0.15s;
+  }
+  .item-row:hover .delete-btn { opacity: 0.6; }
+  .delete-btn:hover { opacity: 1 !important; color: var(--danger); }
+
+  .item-move { flex-shrink: 0; display: flex; flex-direction: column; gap: 1px; margin-top: 2px; }
+  .move-btn {
+    background: none; border: none; color: var(--ink-soft); font-size: 9px; line-height: 1;
+    cursor: pointer; padding: 2px 3px; opacity: 0; transition: opacity 0.15s;
+  }
+  .item-row:hover .move-btn { opacity: 0.5; }
+  .move-btn:hover:not(:disabled) { opacity: 1 !important; color: var(--ink); }
+  .move-btn:disabled { visibility: hidden; cursor: default; }
+
+  .subs { margin: 10px 0 0 32px; padding-left: 12px; border-left: 2px solid var(--line); }
+  ul.sub-items { list-style: none; margin: 0; padding: 0; }
+  .sub-item { display: flex; flex-direction: column; gap: 3px; padding: 6px 0; }
+  .sub-item-row { display: flex; align-items: flex-start; gap: 9px; }
+  .sub-title { flex: 1; font-size: 13.5px; line-height: 1.4; border-radius: 3px; padding: 1px 3px; margin: -1px -3px; }
+  .sub-title:focus { outline: 1px solid var(--done); background: var(--surface); }
+  .sub-item.done .sub-title { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--line); }
+  .sub-delete { background: none; border: none; color: var(--ink-soft); font-size: 15px; cursor: pointer; opacity: 0; padding: 0 3px; }
+  .sub-item:hover .sub-delete { opacity: 0.6; }
+  .sub-delete:hover { opacity: 1 !important; color: var(--danger); }
+  .sub-item-meta { display: flex; align-items: center; gap: 8px; margin-left: 25px; font-size: 11px; color: var(--ink-soft); flex-wrap: wrap; }
+  .sub-item-meta .date-input { width: 100px; }
+  .add-sub-row { display: flex; gap: 6px; margin-top: 6px; }
+  .add-sub-row input { flex: 1; font-size: 13px; padding: 7px 9px; }
+  .add-sub-row button {
+    background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--ink-soft);
+    font-size: 13px; padding: 6px 10px; cursor: pointer; font-family: inherit;
+  }
+  .add-sub-row button:hover { border-color: var(--ink-soft); color: var(--ink); }
+
+  .empty-state { padding: 36px 0; text-align: center; color: var(--ink-soft); font-size: 14px; border-top: 1px solid var(--line); border-radius: 3px; }
+  .no-workspace-state { color: var(--ink-soft); font-size: 14.5px; padding: 40px 20px; text-align: center; width: 100%; }
+  .no-match-state { padding: 20px 0; color: var(--ink-soft); font-size: 13.5px; }
+
+  .toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column-reverse; gap: 8px; z-index: 1000; }
+  .toast { background: var(--ink); color: var(--paper); border-radius: 8px; padding: 10px 16px; font-size: 13px; display: flex; align-items: center; gap: 16px; }
+  .toast button { background: none; border: none; color: var(--paper); text-decoration: underline; font-size: 13px; cursor: pointer; font-family: inherit; padding: 0; white-space: nowrap; }
+
+  body.customizing .editable { outline: 1px dashed var(--pending); outline-offset: 2px; cursor: text; }
+  body.customizing .editable:hover { outline-color: var(--done); }
+  body.customizing .editable-placeholder { cursor: pointer; }
+
+  @media (max-width: 860px) {
+    .main-layout { flex-direction: column; }
+    .overview-panel { width: 100%; position: static; max-height: none; }
+  }
+
+  @media (max-width: 700px) {
+    .workspace-panels { flex-direction: column; }
+    .workspace-panel { max-width: 100% !important; flex: 1 1 auto !important; }
+  }
+
+  @media (max-width: 480px) {
+    .app-shell { padding: 24px 16px 60px; }
+    .panel-title { font-size: 21px; }
+    .workspace-panel { padding: 20px 16px 26px; min-width: 0; }
+    .date-edit-wrap { flex: 1 1 auto; }
+    .date-input, .priority-select { width: auto; flex: 1; }
+    .add-row button.primary { flex: 1 1 100%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }
+
+  @media print {
+    @page { margin: 0; }
+    :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
+      --paper: #FFFFFF; --surface: #FFFFFF; --ink: #000000; --ink-soft: #444444; --line: #BBBBBB;
+      --done: #000000; --done-soft: #FFFFFF;
+      --priority-high: #000000; --priority-medium: #000000; --priority-low: #000000;
+    }
+    body { background: #FFFFFF; }
+    .toolbar, .workspace-bar, .add-card, .search-row, .filter-row, .delete-btn, .sub-delete, .add-sub-row,
+    .progress-track, .progress-percent, .cal-btn, .native-date-hidden, .cal-popover, .overview-panel,
+    .collapse-chevron, .group-count, .toast-container, .no-workspace-state, .item-move,
+    .print-preview-overlay { display: none !important; }
+    .main-layout { display: block !important; }
+    .app-shell { max-width: 100%; padding: 0; }
+    .workspace-panels { display: block !important; overflow: visible !important; }
+    .workspace-panel {
+      border: none !important; background: none !important; max-width: 100% !important;
+      padding: 16mm 12mm !important;
+    }
+    .workspace-panel:not(:first-child) { break-before: page; page-break-before: always; }
+    .checkbox, .progress-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .item, .sub-item { break-inside: avoid; }
+    .item, .item:first-child { border: none !important; }
+    .due-screen-text { display: none; }
+    .due-print-text { display: inline; }
+    .sprint-scope-print-note { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .priority-screen-select { display: none !important; }
+    .priority-print-text { display: inline; }
+    .points-input, .board-card-points, .sprint-assign-select { display: none !important; }
+    select { appearance: none; -webkit-appearance: none; border: none; background: none; padding: 0; }
+    .collapsed-list { display: block !important; }
+    body.hide-completed-print .done-section { display: none !important; }
+    .group-label, .group-label-row {
+      font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-weight: 600; color: var(--ink);
+      border-bottom: none; padding-top: 40px; margin: 0 0 6px; break-after: avoid;
+    }
+    .group-label:first-child, .group-label-row:first-child { padding-top: 0; }
+  }
+
+  /* ---- PDF preview: an in-app screen rendering of what Export PDF will save,
+     since there's no OS dialog involved to show one ---- */
+  .print-preview-overlay {
+    position: fixed; inset: 0; z-index: 3000; background: rgba(0, 0, 0, 0.55);
+    display: flex; flex-direction: column;
+  }
+  .print-preview-toolbar {
+    display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    background: var(--surface); border-bottom: 1px solid var(--line); padding: 12px 20px;
+  }
+  .print-preview-title { font-weight: 600; font-size: 14px; color: var(--ink); }
+  .print-preview-style-toggle { display: flex; gap: 6px; }
+  .pdf-style-btn.active { border-color: var(--done); color: var(--done); }
+  .print-preview-actions { display: flex; gap: 10px; }
+  .print-preview-actions .primary {
+    padding: 8px 16px; border: none; border-radius: 8px; background: var(--ink); color: var(--paper);
+    font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
+  }
+  .print-preview-actions .primary:hover { opacity: 0.85; }
+  .print-preview-page-wrap { flex: 1; overflow: auto; padding: 28px; }
+  .print-preview-content {
+    --paper: #FFFFFF; --surface: #FFFFFF; --ink: #000000; --ink-soft: #444444; --line: #BBBBBB;
+    --done: #000000; --done-soft: #FFFFFF;
+    --priority-high: #000000; --priority-medium: #000000; --priority-low: #000000;
+    max-width: 850px; margin: 0 auto; background: #FFFFFF; color: #000000;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35); min-height: 200px;
+  }
+  .print-preview-content .toolbar, .print-preview-content .workspace-bar,
+  .print-preview-content .add-card, .print-preview-content .search-row, .print-preview-content .filter-row,
+  .print-preview-content .view-sprint-row,
+  .print-preview-content .delete-btn, .print-preview-content .sub-delete, .print-preview-content .add-sub-row,
+  .print-preview-content .progress-track, .print-preview-content .progress-percent,
+  .print-preview-content .cal-btn, .print-preview-content .native-date-hidden,
+  .print-preview-content .collapse-chevron, .print-preview-content .group-count,
+  .print-preview-content .item-move { display: none !important; }
+  .print-preview-content .board-container { display: none !important; }
+  .print-preview-content .panel-list { display: block !important; }
+  .print-preview-content .workspace-panel {
+    border: none !important; background: none !important; max-width: 100% !important;
+    padding: 16mm 12mm !important;
+  }
+  .print-preview-content .item, .print-preview-content .item:first-child { border: none !important; }
+  .print-preview-content .due-screen-text { display: none; }
+  .print-preview-content .due-print-text { display: inline; }
+  .print-preview-content .sprint-scope-print-note { display: block; font-size: 12px; color: #444; margin-top: 2px; }
+  .print-preview-content .priority-screen-select { display: none !important; }
+  .print-preview-content .priority-print-text { display: inline; }
+  .print-preview-content .points-input, .print-preview-content .board-card-points,
+  .print-preview-content .sprint-assign-select { display: none !important; }
+  .print-preview-content .workspace-panel:not(:first-child) { border-top: 1px dashed #ccc; margin-top: 8mm; }
+  .print-preview-content select { appearance: none; -webkit-appearance: none; border: none; background: none; padding: 0; }
+  .print-preview-content.hide-completed-print .done-section { display: none !important; }
+  .print-preview-content .group-label, .print-preview-content .group-label-row {
+    font-family: Georgia, 'Times New Roman', serif; font-size: 17px; font-weight: 600; color: #000;
+    padding-top: 40px; margin: 0 0 6px;
+  }
+  .print-preview-content .group-label:first-child, .print-preview-content .group-label-row:first-child { padding-top: 0; }
+
+  /* ---- Scrum: view toggle, sprint bar, board, sprint modal ---- */
+  .view-sprint-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 16px; }
+  .board-container { display: none; }
+  .workspace-panel.showing-board .panel-list { display: none; }
+  .workspace-panel.showing-board .board-container { display: block; }
+  .view-toggle { display: flex; gap: 6px; }
+  .view-btn.active { border-color: var(--done); color: var(--done); }
+  .sprint-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .sprint-select {
+    font-size: 12.5px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 20px;
+    background-color: var(--surface); color: var(--ink); font-family: inherit;
+  }
+  .sprint-info { font-size: 12px; color: var(--ink-soft); }
+  .sprint-scope-print-note { display: none; }
+
+  .board-columns { display: flex; gap: 14px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
+  .board-column { flex: 1 1 0; min-width: 230px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .board-column-header {
+    display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 13px;
+    color: var(--ink); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  }
+  .board-column-points { font-size: 11px; color: var(--ink-soft); font-weight: 400; }
+  .board-cards { display: flex; flex-direction: column; gap: 8px; min-height: 40px; }
+  .board-cards.drag-over { outline: 2px dashed var(--done); outline-offset: -4px; border-radius: 8px; }
+  .board-card {
+    position: relative; background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 26px 9px 11px; cursor: grab; font-size: 13px;
+  }
+  .board-card.dragging { opacity: 0.4; }
+  .board-card-delete {
+    position: absolute; top: 5px; right: 6px; background: none; border: none; color: var(--ink-soft);
+    font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 4px; opacity: 0; transition: opacity 0.15s;
+  }
+  .board-card:hover .board-card-delete { opacity: 0.6; }
+  .board-card-delete:hover { opacity: 1 !important; color: var(--danger); }
+  .board-card-title { line-height: 1.35; word-break: break-word; }
+  .board-card-title.done { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--line); }
+  .board-card-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 11px; color: var(--ink-soft); }
+  .board-card-points {
+    background: var(--done-soft); color: var(--done); border-radius: 10px; padding: 1px 7px; font-weight: 600;
+  }
+  .board-card-due.overdue { color: var(--danger); }
+  .board-empty-hint { font-size: 12px; color: var(--ink-soft); text-align: center; padding: 16px 4px; }
+
+  .sprint-modal-overlay {
+    position: fixed; inset: 0; z-index: 3000; background: rgba(0, 0, 0, 0.55);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sprint-modal { background: var(--surface); border-radius: 12px; padding: 20px; width: 340px; max-width: calc(100vw - 40px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); }
+  .sprint-modal h3 { margin: 0 0 14px; font-size: 15px; color: var(--ink); }
+  .sprint-field { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 12px; }
+  .sprint-field input[type="text"] {
+    display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px; box-sizing: border-box;
+  }
+  .sprint-modal-dates { display: flex; gap: 12px; }
+  .sprint-modal-dates .sprint-field { flex: 1; }
+  .sprint-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+  .sprint-modal-actions .primary {
+    padding: 8px 16px; border: none; border-radius: 8px; background: var(--ink); color: var(--paper);
+    font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .sprint-modal-actions .primary:hover { opacity: 0.85; }
+  #sprintModalOverlay { z-index: 3100; }
+  .sprint-manage-modal { width: 380px; }
+  .sprint-manage-empty { font-size: 13px; color: var(--ink-soft); padding: 8px 0 16px; }
+  .sprint-manage-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--line);
+  }
+  .sprint-manage-row:last-child { border-bottom: none; }
+  .sprint-manage-row-info { min-width: 0; }
+  .sprint-manage-row-name { font-size: 13.5px; color: var(--ink); word-break: break-word; }
+  .sprint-manage-row-sub { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+  .sprint-manage-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* Shared look for every <select> in the app: no native OS widget chrome, but with an
+     explicit chevron so it still reads as a dropdown. Declared last so its background-image
+     and padding-right survive selects that set their own background-color/padding above. */
+  .styled-select {
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%23888f8a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 10px;
+    padding-right: 20px;
+    cursor: pointer;
+  }
+
+  @media print {
+    .view-sprint-row, .board-container { display: none !important; }
+    .panel-list { display: block !important; }
+    body.pdf-style-scrum #panelsContainer { display: none !important; }
+    body.pdf-style-scrum #pdfScrumContent { display: block !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <div class="toolbar">
+    <span class="app-label editable" contenteditable="false" data-key="appLabel">Task Tracker</span>
+    <div class="toolbar-actions">
+      <label class="toolbar-toggle"><input type="checkbox" id="includeCompletedToggle" checked><span>Completed in export</span></label>
+      <button class="reset-link" id="resetTextBtn" type="button" style="display:none;">Reset text</button>
+      <button class="chip-btn" id="customizeBtn" type="button">Customize text</button>
+      <button class="chip-btn" id="exportBtn" type="button"><span class="editable" contenteditable="false" data-key="exportBtnLabel">Export PDF</span></button>
+      <button class="chip-btn" id="exportBackupBtn" type="button">Export backup</button>
+      <button class="chip-btn" id="importBackupBtn" type="button">Import backup</button>
+      <button class="chip-btn" id="themeToggle" type="button">Dark</button>
+    </div>
+  </div>
+
+  <div class="workspace-bar" id="workspaceBar"></div>
+
+  <div class="main-layout" id="mainLayout">
+    <aside class="overview-panel" id="overviewPanel">
+      <div class="sidebar-tabs">
+        <button class="chip-btn sidebar-tab-btn" id="overviewTabBtn" type="button">Overview</button>
+        <button class="chip-btn sidebar-tab-btn" id="changesTabBtn" type="button">Changes</button>
+      </div>
+      <div id="overviewTabContent">
+        <h2 class="overview-title editable" contenteditable="false" data-key="overviewTitle">Overview</h2>
+        <p class="overview-subtitle editable" contenteditable="false" data-key="overviewSubtitle">Pending tasks across all workspaces.</p>
+        <div id="overviewList"></div>
+      </div>
+      <div id="changesTabContent" style="display:none;">
+        <h2 class="overview-title">Changes</h2>
+        <select class="sprint-select styled-select" id="changesFilterSelect">
+          <option value="all">Everything</option>
+          <option value="task">Task related</option>
+          <option value="text">Text edits</option>
+          <option value="delete">Deletions</option>
+          <option value="undo">Undos</option>
+        </select>
+        <div id="changesList"></div>
+      </div>
+    </aside>
+    <div class="workspace-panels" id="panelsContainer"></div>
+  </div>
+  <div id="pdfScrumContent" style="display:none;"></div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="print-preview-overlay" id="printPreviewOverlay" style="display:none;">
+  <div class="print-preview-toolbar">
+    <span class="print-preview-title">Preview</span>
+    <div class="print-preview-style-toggle">
+      <button class="chip-btn pdf-style-btn" id="pdfStyleListBtn" type="button">Task list</button>
+      <button class="chip-btn pdf-style-btn" id="pdfStyleScrumBtn" type="button">Scrum</button>
+    </div>
+    <select class="sprint-select styled-select" id="pdfSprintSelect" style="display:none;" title="Preview a specific sprint, the backlog, or everything."></select>
+    <div class="print-preview-actions">
+      <button class="primary" id="printPreviewSaveBtn" type="button">Save as PDF…</button>
+      <button class="chip-btn" id="printPreviewCloseBtn" type="button">Close</button>
+    </div>
+  </div>
+  <div class="print-preview-page-wrap">
+    <div class="print-preview-content" id="printPreviewContent"></div>
+  </div>
+</div>
+
+<div class="sprint-modal-overlay" id="sprintModalOverlay" style="display:none;">
+  <div class="sprint-modal">
+    <h3 id="sprintModalTitle">New sprint</h3>
+    <label class="sprint-field">Name
+      <input type="text" id="sprintNameInput" maxlength="80" autocomplete="off">
+    </label>
+    <label class="sprint-field">Goal
+      <input type="text" id="sprintGoalInput" maxlength="200" autocomplete="off" placeholder="Optional">
+    </label>
+    <div class="sprint-modal-dates">
+      <label class="sprint-field">Start<span id="sprintStartSlot"></span></label>
+      <label class="sprint-field">End<span id="sprintEndSlot"></span></label>
+    </div>
+    <div class="sprint-modal-actions">
+      <button type="button" id="sprintCancelBtn" class="chip-btn">Cancel</button>
+      <button type="button" id="sprintSaveBtn" class="primary">Save sprint</button>
+    </div>
+  </div>
+</div>
+
+<div class="sprint-modal-overlay" id="sprintManageOverlay" style="display:none;">
+  <div class="sprint-modal sprint-manage-modal">
+    <h3>Manage sprints</h3>
+    <div id="sprintManageList"></div>
+    <div class="sprint-modal-actions">
+      <button type="button" id="sprintManageNewBtn" class="chip-btn">+ New sprint</button>
+      <button type="button" id="sprintManageCloseBtn" class="primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const WORKSPACES_KEY = 'deliverables-tracker-workspaces';
+  const LABELS_KEY = 'deliverables-tracker-labels';
+  const THEME_KEY = 'deliverables-tracker-theme';
+  const EXPORT_PREFS_KEY = 'deliverables-tracker-export-prefs';
+  const ACTIVITY_KEY = 'deliverables-tracker-activity';
+  const ACTIVITY_LIMIT = 300;
+
+  // ---------- file-backed store (tauri-plugin-store, via raw invoke to avoid a bundler) ----------
+  const { invoke } = window.__TAURI__.core;
+  const STORE_PATH = 'store.json';
+  let storeRid = null;
+
+  async function initStore() {
+    storeRid = await invoke('plugin:store|load', { path: STORE_PATH, options: {} });
+  }
+  async function storeGet(key) {
+    const [value, exists] = await invoke('plugin:store|get', { rid: storeRid, key: key });
+    return exists ? value : undefined;
+  }
+  function storeSet(key, value) {
+    invoke('plugin:store|set', { rid: storeRid, key: key, value: value })
+      .then(() => invoke('plugin:store|save', { rid: storeRid }))
+      .catch(e => console.error('Failed to save', key, e));
+  }
+
+  const DEFAULT_LABELS = {
+    appLabel: 'Task Tracker',
+    addBtnLabel: 'Add',
+    exportBtnLabel: 'Export PDF',
+    pendingLabel: 'In progress',
+    doneLabel: 'Completed',
+    emptyStateText: 'Nothing tracked yet. Add your first task above.',
+    overviewTitle: 'Overview',
+    overviewSubtitle: 'Pending tasks across all workspaces.',
+    statusTodoLabel: 'To do',
+    statusInProgressLabel: 'In progress',
+    statusDoneLabel: 'Done'
+  };
+
+  let workspaces = [];
+  let activeWorkspaceIds = [];
+  let labels = Object.assign({}, DEFAULT_LABELS);
+  let customizing = false;
+  let pendingFocusWorkspaceId = null;
+  let dragWorkspaceId = null;
+
+  // ---------- storage ----------
+  const STATUSES = ['todo', 'inprogress', 'done'];
+  const STATUS_LABEL_KEY = { todo: 'statusTodoLabel', inprogress: 'statusInProgressLabel', done: 'statusDoneLabel' };
+
+  function syncItemStatus(item) {
+    if (item.done) item.status = 'done';
+    else if (item.subs.some(s => s.done)) item.status = 'inprogress';
+    else item.status = 'todo';
+  }
+
+  function normalizeWorkspace(ws) {
+    if (!Array.isArray(ws.items)) ws.items = [];
+    if (typeof ws.completedCollapsed !== 'boolean') ws.completedCollapsed = false;
+    if (!Array.isArray(ws.sprints)) ws.sprints = [];
+    if (ws.view !== 'board' && ws.view !== 'list') ws.view = 'list';
+    if (ws.activeSprintId === undefined) ws.activeSprintId = 'all';
+    ws.sprints.forEach(s => {
+      if (s.goal === undefined) s.goal = '';
+      if (s.startDate === undefined) s.startDate = null;
+      if (s.endDate === undefined) s.endDate = null;
+    });
+    ws.items.forEach(i => {
+      if (!Array.isArray(i.subs)) i.subs = [];
+      if (i.completedDate === undefined) i.completedDate = null;
+      if (STATUSES.indexOf(i.status) === -1) i.status = i.done ? 'done' : 'todo';
+      if (i.storyPoints === undefined) i.storyPoints = null;
+      if (i.sprintId === undefined) i.sprintId = null;
+      i.subs.forEach(s => {
+        if (s.due === undefined) s.due = null;
+        if (s.priority === undefined) s.priority = null;
+      });
+    });
+    return ws;
+  }
+
+  async function loadWorkspaces() {
+    let isFirstRun = false;
+    try {
+      const stored = await storeGet(WORKSPACES_KEY);
+      if (stored !== undefined) {
+        workspaces = Array.isArray(stored.workspaces) ? stored.workspaces.map(normalizeWorkspace) : [];
+        activeWorkspaceIds = Array.isArray(stored.activeIds) ? stored.activeIds : [];
+      } else {
+        isFirstRun = true;
+      }
+    } catch (e) { console.error('Failed to load workspaces', e); workspaces = []; activeWorkspaceIds = []; isFirstRun = true; }
+
+    if (isFirstRun && workspaces.length === 0) {
+      const ws = normalizeWorkspace({ id: uid(), name: 'New workspace', items: [], completedCollapsed: false });
+      workspaces = [ws]; activeWorkspaceIds = [ws.id];
+      pendingFocusWorkspaceId = ws.id;
+      saveWorkspaces();
+    }
+    activeWorkspaceIds = activeWorkspaceIds.filter(id => workspaces.some(w => w.id === id));
+    if (activeWorkspaceIds.length === 0 && workspaces.length > 0) activeWorkspaceIds = [workspaces[0].id];
+  }
+
+  function saveWorkspaces() {
+    storeSet(WORKSPACES_KEY, { workspaces: workspaces, activeIds: activeWorkspaceIds });
+  }
+
+  async function loadLabels() {
+    try {
+      const stored = await storeGet(LABELS_KEY);
+      labels = Object.assign({}, DEFAULT_LABELS, stored || {});
+    } catch (e) { labels = Object.assign({}, DEFAULT_LABELS); }
+  }
+  function saveLabels() {
+    storeSet(LABELS_KEY, labels);
+  }
+
+  async function loadExportPrefs() {
+    let includeCompleted = true;
+    try {
+      const stored = await storeGet(EXPORT_PREFS_KEY);
+      if (stored && typeof stored.includeCompleted === 'boolean') includeCompleted = stored.includeCompleted;
+    } catch (e) {}
+    return includeCompleted;
+  }
+  function saveExportPrefs(includeCompleted) {
+    storeSet(EXPORT_PREFS_KEY, { includeCompleted: includeCompleted });
+  }
+
+  // ---------- activity log ----------
+  let activityLog = [];
+  async function loadActivityLog() {
+    try {
+      const stored = await storeGet(ACTIVITY_KEY);
+      activityLog = Array.isArray(stored) ? stored : [];
+    } catch (e) { activityLog = []; }
+  }
+  function saveActivityLog() { storeSet(ACTIVITY_KEY, activityLog); }
+  function logActivity(type, message, wsName) {
+    activityLog.unshift({ id: uid(), ts: Date.now(), type: type, message: message, wsName: wsName || null });
+    if (activityLog.length > ACTIVITY_LIMIT) activityLog.length = ACTIVITY_LIMIT;
+    saveActivityLog();
+    renderChangesList();
+  }
+
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  // ---------- date handling (day-month-year, DD-MM-YYYY) ----------
+  function pad2(n) { return n.toString().padStart(2, '0'); }
+  function isoToDMY(iso) {
+    if (!iso) return '';
+    const parts = iso.split('-');
+    return parts[2] + '-' + parts[1] + '-' + parts[0];
+  }
+  function dmyToIso(dmy) {
+    const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec((dmy || '').trim());
+    if (!match) return null;
+    const day = parseInt(match[1], 10), month = parseInt(match[2], 10), year = parseInt(match[3], 10);
+    if (month < 1 || month > 12) return null;
+    const dt = new Date(year, month - 1, day);
+    if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return null;
+    return year + '-' + pad2(month) + '-' + pad2(day);
+  }
+  function maskDateInput(el) {
+    let digits = el.value.replace(/\D/g, '').slice(0, 8);
+    let out = '';
+    if (digits.length > 0) out += digits.slice(0, 2);
+    if (digits.length >= 3) out += '-' + digits.slice(2, 4);
+    if (digits.length >= 5) out += '-' + digits.slice(4, 8);
+    el.value = out;
+  }
+  function parseIsoDate(iso) {
+    const p = iso.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, p[2]);
+  }
+  function isOverdue(iso, done) {
+    if (!iso || done) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return parseIsoDate(iso) < today;
+  }
+  function todayIso() {
+    const d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  function computeBucket(iso) {
+    if (!iso) return 'none';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const d = parseIsoDate(iso); d.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((d - today) / 86400000);
+    if (diffDays <= 0) return 'today';
+    if (diffDays <= 6) return 'week';
+    return 'later';
+  }
+  function calendarSvg() {
+    return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5 1.5v3M11 1.5v3"/></svg>';
+  }
+  function duplicateSvg() {
+    return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2" width="9" height="9" rx="1.5"/><rect x="5" y="5" width="9" height="9" rx="1.5"/></svg>';
+  }
+  // WebKitGTK's native <input type=date> popover (showPicker) can get stuck open and block
+  // the window, so the calendar button opens this small in-page popover instead.
+  const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const DOW_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  let openCalPopoverEl = null;
+  let closeCalPopoverListeners = null;
+
+  function closeCalPopover() {
+    if (!openCalPopoverEl) return;
+    openCalPopoverEl.remove();
+    openCalPopoverEl = null;
+    if (closeCalPopoverListeners) { closeCalPopoverListeners(); closeCalPopoverListeners = null; }
+  }
+
+  function openCalendarPopover(anchorEl, currentIso, onPick) {
+    closeCalPopover();
+    const pop = document.createElement('div');
+    pop.className = 'cal-popover';
+    // Keep focus on whatever opened the popover (e.g. an in-place edit field) so clicking
+    // around inside it doesn't trigger that field's blur/commit handling.
+    pop.addEventListener('mousedown', e => e.preventDefault());
+    const view = currentIso ? parseIsoDate(currentIso) : new Date();
+    view.setDate(1);
+
+    function renderPopover() {
+      pop.innerHTML = '';
+      const header = document.createElement('div'); header.className = 'cal-pop-header';
+      const prevBtn = document.createElement('button'); prevBtn.type = 'button'; prevBtn.className = 'cal-nav'; prevBtn.textContent = '‹';
+      const label = document.createElement('span'); label.className = 'cal-pop-label';
+      label.textContent = MONTH_NAMES[view.getMonth()] + ' ' + view.getFullYear();
+      const nextBtn = document.createElement('button'); nextBtn.type = 'button'; nextBtn.className = 'cal-nav'; nextBtn.textContent = '›';
+      prevBtn.addEventListener('click', () => { view.setMonth(view.getMonth() - 1); renderPopover(); });
+      nextBtn.addEventListener('click', () => { view.setMonth(view.getMonth() + 1); renderPopover(); });
+      header.appendChild(prevBtn); header.appendChild(label); header.appendChild(nextBtn);
+      pop.appendChild(header);
+
+      const grid = document.createElement('div'); grid.className = 'cal-pop-grid';
+      DOW_NAMES.forEach(d => { const c = document.createElement('div'); c.className = 'cal-pop-dow'; c.textContent = d; grid.appendChild(c); });
+
+      const year = view.getFullYear(), month = view.getMonth();
+      const startOffset = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const todayStr = todayIso();
+      for (let i = 0; i < startOffset; i++) grid.appendChild(document.createElement('div'));
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = year + '-' + pad2(month + 1) + '-' + pad2(d);
+        const cell = document.createElement('button');
+        cell.type = 'button'; cell.className = 'cal-pop-day'; cell.textContent = String(d);
+        if (iso === todayStr) cell.classList.add('is-today');
+        if (currentIso && iso === currentIso) cell.classList.add('is-selected');
+        cell.addEventListener('click', () => { onPick(iso); closeCalPopover(); });
+        grid.appendChild(cell);
+      }
+      pop.appendChild(grid);
+
+      const footer = document.createElement('div'); footer.className = 'cal-pop-footer';
+      const todayBtn = document.createElement('button'); todayBtn.type = 'button'; todayBtn.className = 'cal-pop-today'; todayBtn.textContent = 'Today';
+      todayBtn.addEventListener('click', () => { onPick(todayStr); closeCalPopover(); });
+      footer.appendChild(todayBtn);
+      pop.appendChild(footer);
+    }
+    renderPopover();
+
+    document.body.appendChild(pop);
+    const anchorRect = anchorEl.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    let top = anchorRect.bottom + 6;
+    let left = anchorRect.left;
+    if (left + popRect.width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - popRect.width - 8);
+    if (top + popRect.height > window.innerHeight - 8) top = anchorRect.top - popRect.height - 6;
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+    openCalPopoverEl = pop;
+
+    const onOutside = e => { if (!pop.contains(e.target) && e.target !== anchorEl) closeCalPopover(); };
+    const onKey = e => { if (e.key === 'Escape') closeCalPopover(); };
+    setTimeout(() => {
+      document.addEventListener('mousedown', onOutside, true);
+      document.addEventListener('keydown', onKey, true);
+    }, 0);
+    closeCalPopoverListeners = () => {
+      document.removeEventListener('mousedown', onOutside, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }
+
+  // Reusable masked-text + calendar-icon date field (used by the sprint form).
+  function buildDateField(initialIso) {
+    const wrap = document.createElement('span'); wrap.className = 'date-edit-wrap';
+    const input = document.createElement('input');
+    input.type = 'text'; input.className = 'date-input date-mask-input'; input.placeholder = 'DD-MM-YYYY';
+    input.inputMode = 'numeric'; input.maxLength = 10; input.autocomplete = 'off';
+    input.value = isoToDMY(initialIso);
+    input.addEventListener('input', () => maskDateInput(input));
+    const calBtn = document.createElement('button');
+    calBtn.type = 'button'; calBtn.className = 'cal-btn'; calBtn.setAttribute('aria-label', 'Choose date from calendar');
+    calBtn.innerHTML = calendarSvg();
+    const nativeDate = document.createElement('input');
+    nativeDate.type = 'date'; nativeDate.className = 'native-date-hidden'; nativeDate.tabIndex = -1;
+    nativeDate.setAttribute('aria-hidden', 'true');
+    if (initialIso) nativeDate.value = initialIso;
+    calBtn.addEventListener('mousedown', e => e.preventDefault());
+    calBtn.addEventListener('click', e => {
+      e.preventDefault();
+      openCalendarPopover(calBtn, nativeDate.value || null, iso => { nativeDate.value = iso; nativeDate.dispatchEvent(new Event('change')); });
+    });
+    nativeDate.addEventListener('change', () => { if (nativeDate.value) input.value = isoToDMY(nativeDate.value); });
+    wrap.appendChild(input); wrap.appendChild(calBtn); wrap.appendChild(nativeDate);
+    return { el: wrap, getIso: () => { const raw = input.value.trim(); return raw ? dmyToIso(raw) : null; } };
+  }
+  function checkSvg() {
+    return '<svg viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.2 11.5L13 4.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  function selectAllContentEditable(el) {
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges(); sel.addRange(range);
+  }
+
+  const PRIORITY_TEXT = { high: 'High', medium: 'Medium', low: 'Low' };
+
+  // ---------- undo toast ----------
+  function showUndoToast(message, undoFn) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div'); toast.className = 'toast';
+    const msg = document.createElement('span'); msg.textContent = message;
+    const undoBtn = document.createElement('button'); undoBtn.type = 'button'; undoBtn.textContent = 'Undo';
+    let dismissed = false;
+    const remove = () => { if (!dismissed) { dismissed = true; toast.remove(); } };
+    undoBtn.addEventListener('click', () => { remove(); undoFn(); });
+    toast.appendChild(msg); toast.appendChild(undoBtn);
+    container.appendChild(toast);
+    setTimeout(remove, 6000);
+  }
+
+  // ---------- shared label helpers ----------
+  function applyLabels() {
+    document.querySelectorAll('[data-key]').forEach(el => {
+      const key = el.getAttribute('data-key');
+      if (labels[key] !== undefined) el.textContent = labels[key];
+    });
+  }
+  function applyPlaceholders() {
+    document.querySelectorAll('[data-placeholder-key]').forEach(el => {
+      const key = el.getAttribute('data-placeholder-key');
+      if (labels[key]) el.placeholder = labels[key];
+    });
+  }
+  function bindEnterToBlur(el) {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+  }
+  function bindPasteAsPlainText(el) {
+    el.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    });
+  }
+  function bindEditable(el) {
+    el.addEventListener('blur', () => {
+      const key = el.getAttribute('data-key');
+      if (!key) return;
+      const val = el.textContent.trim();
+      labels[key] = val || DEFAULT_LABELS[key];
+      saveLabels();
+      applyLabels();
+    });
+    bindEnterToBlur(el);
+    bindPasteAsPlainText(el);
+  }
+  function bindPlaceholderEdit(el, key) {
+    el.classList.add('editable-placeholder');
+    el.setAttribute('data-placeholder-key', key);
+    el.addEventListener('click', e => {
+      if (!customizing) return;
+      e.preventDefault(); el.blur();
+      const next = window.prompt('Placeholder text:', el.placeholder);
+      if (next !== null) { labels[key] = next; saveLabels(); applyPlaceholders(); }
+    });
+  }
+  function updateEditableState() {
+    document.body.classList.toggle('customizing', customizing);
+    document.querySelectorAll('.editable').forEach(el => { el.contentEditable = customizing ? 'true' : 'false'; });
+    document.getElementById('resetTextBtn').style.display = customizing ? 'inline' : 'none';
+    document.getElementById('customizeBtn').classList.toggle('active', customizing);
+    document.getElementById('customizeBtn').textContent = customizing ? 'Done editing' : 'Customize text';
+  }
+
+  // ---------- overview sidebar ----------
+  function renderOverview() {
+    const container = document.getElementById('overviewList');
+    if (!container) return;
+    container.innerHTML = '';
+    const buckets = { today: [], week: [], later: [], none: [] };
+    workspaces.forEach(ws => {
+      ws.items.filter(i => !i.done).forEach(item => {
+        buckets[computeBucket(item.due)].push({ item: item, ws: ws });
+      });
+    });
+    ['today', 'week', 'later'].forEach(k => buckets[k].sort((a, b) => (a.item.due || '').localeCompare(b.item.due || '')));
+
+    const sections = [['today', 'Today'], ['week', 'This week'], ['later', 'Later'], ['none', 'No date']];
+    let any = false;
+    sections.forEach(pair => {
+      const key = pair[0], label = pair[1];
+      if (buckets[key].length === 0) return;
+      any = true;
+      const heading = document.createElement('div'); heading.className = 'overview-heading'; heading.textContent = label;
+      container.appendChild(heading);
+      buckets[key].forEach(pairEntry => {
+        const item = pairEntry.item, ws = pairEntry.ws;
+        const row = document.createElement('button');
+        row.type = 'button'; row.className = 'overview-row';
+        row.addEventListener('click', () => {
+          if (!activeWorkspaceIds.includes(ws.id)) { activeWorkspaceIds = activeWorkspaceIds.concat([ws.id]); saveWorkspaces(); renderApp(); }
+        });
+        const titleSpan = document.createElement('span'); titleSpan.className = 'overview-item-title'; titleSpan.textContent = item.title;
+        const metaSpan = document.createElement('span'); metaSpan.className = 'overview-item-meta';
+        const wsTag = document.createElement('span'); wsTag.className = 'overview-ws-tag'; wsTag.textContent = ws.name;
+        metaSpan.appendChild(wsTag);
+        const overdue = isOverdue(item.due, item.done);
+        if (item.due) {
+          const d = document.createElement('span'); d.className = 'overview-date' + (overdue ? ' overdue' : '');
+          d.textContent = (overdue ? 'Overdue ' : '') + isoToDMY(item.due);
+          metaSpan.appendChild(d);
+        }
+        row.appendChild(titleSpan); row.appendChild(metaSpan);
+        container.appendChild(row);
+      });
+    });
+    if (!any) {
+      const empty = document.createElement('div'); empty.className = 'overview-empty'; empty.textContent = 'No pending tasks.';
+      container.appendChild(empty);
+    }
+  }
+
+  // ---------- sidebar tabs: overview / changes ----------
+  let sidebarTab = 'overview';
+  function updateSidebarTabs() {
+    document.getElementById('overviewTabBtn').classList.toggle('active', sidebarTab === 'overview');
+    document.getElementById('changesTabBtn').classList.toggle('active', sidebarTab === 'changes');
+    document.getElementById('overviewTabContent').style.display = sidebarTab === 'overview' ? '' : 'none';
+    document.getElementById('changesTabContent').style.display = sidebarTab === 'changes' ? '' : 'none';
+  }
+  function timeAgo(ts) {
+    const diff = Math.max(0, Date.now() - ts);
+    const min = Math.floor(diff / 60000);
+    if (min < 1) return 'just now';
+    if (min < 60) return min + 'm ago';
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    const day = Math.floor(hr / 24);
+    if (day < 7) return day + 'd ago';
+    const d = new Date(ts);
+    return isoToDMY(d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()));
+  }
+  const CHANGE_TYPE_LABEL = { task: 'Task', text: 'Text edit', delete: 'Deletion', undo: 'Undo' };
+  function renderChangesList() {
+    const container = document.getElementById('changesList');
+    if (!container) return;
+    const filter = document.getElementById('changesFilterSelect').value;
+    container.innerHTML = '';
+    const entries = filter === 'all' ? activityLog : activityLog.filter(e => e.type === filter);
+    if (entries.length === 0) {
+      const empty = document.createElement('div'); empty.className = 'overview-empty';
+      empty.textContent = activityLog.length === 0 ? 'No changes yet.' : 'No changes match this filter.';
+      container.appendChild(empty);
+      return;
+    }
+    entries.forEach(entry => {
+      const row = document.createElement('div'); row.className = 'change-row';
+      const msg = document.createElement('div'); msg.className = 'change-message'; msg.textContent = entry.message;
+      row.appendChild(msg);
+      const meta = document.createElement('div'); meta.className = 'change-meta';
+      const typeTag = document.createElement('span'); typeTag.className = 'change-type-tag ' + entry.type;
+      typeTag.textContent = CHANGE_TYPE_LABEL[entry.type] || entry.type;
+      meta.appendChild(typeTag);
+      if (entry.wsName) { const wsTag = document.createElement('span'); wsTag.className = 'overview-ws-tag'; wsTag.textContent = entry.wsName; meta.appendChild(wsTag); }
+      const time = document.createElement('span'); time.textContent = timeAgo(entry.ts);
+      meta.appendChild(time);
+      row.appendChild(meta);
+      container.appendChild(row);
+    });
+  }
+
+  // ---------- workspace bar ----------
+  function renderWorkspaceBar() {
+    const bar = document.getElementById('workspaceBar');
+    bar.innerHTML = '';
+    workspaces.forEach(ws => {
+      const chip = document.createElement('div');
+      chip.className = 'ws-chip' + (activeWorkspaceIds.includes(ws.id) ? ' active' : '');
+      chip.draggable = true;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'ws-chip-name';
+      nameSpan.textContent = ws.name;
+      chip.appendChild(nameSpan);
+
+      const overdueCount = ws.items.filter(i => !i.done && isOverdue(i.due, i.done)).length;
+      if (overdueCount > 0) {
+        const badge = document.createElement('span'); badge.className = 'ws-chip-badge'; badge.textContent = String(overdueCount);
+        badge.setAttribute('aria-label', overdueCount + ' overdue');
+        chip.appendChild(badge);
+      }
+
+      const actions = document.createElement('span');
+      actions.className = 'ws-chip-actions';
+      const dupBtn = document.createElement('button');
+      dupBtn.type = 'button'; dupBtn.className = 'ws-chip-icon-btn'; dupBtn.setAttribute('aria-label', 'Duplicate workspace ' + ws.name);
+      dupBtn.innerHTML = duplicateSvg();
+      dupBtn.addEventListener('click', e => { e.stopPropagation(); duplicateWorkspace(ws.id); });
+      actions.appendChild(dupBtn);
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button'; delBtn.className = 'ws-chip-icon-btn danger'; delBtn.setAttribute('aria-label', 'Delete workspace ' + ws.name);
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', e => { e.stopPropagation(); deleteWorkspace(ws.id); });
+      actions.appendChild(delBtn);
+      chip.appendChild(actions);
+
+      chip.addEventListener('click', () => toggleWorkspaceActive(ws.id));
+
+      chip.addEventListener('dragstart', () => { dragWorkspaceId = ws.id; });
+      chip.addEventListener('dragover', e => { e.preventDefault(); chip.classList.add('drag-over'); });
+      chip.addEventListener('dragleave', () => { chip.classList.remove('drag-over'); });
+      chip.addEventListener('drop', e => {
+        e.preventDefault(); chip.classList.remove('drag-over');
+        if (!dragWorkspaceId || dragWorkspaceId === ws.id) return;
+        const fromIdx = workspaces.findIndex(w => w.id === dragWorkspaceId);
+        const toIdx = workspaces.findIndex(w => w.id === ws.id);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const moved = workspaces.splice(fromIdx, 1)[0];
+        workspaces.splice(toIdx, 0, moved);
+        dragWorkspaceId = null;
+        saveWorkspaces(); renderApp();
+      });
+      chip.addEventListener('dragend', () => { chip.classList.remove('drag-over'); dragWorkspaceId = null; });
+
+      bar.appendChild(chip);
+    });
+
+    const newBtn = document.createElement('button');
+    newBtn.type = 'button'; newBtn.className = 'ws-new-btn'; newBtn.textContent = '+ New workspace';
+    newBtn.addEventListener('click', createWorkspace);
+    bar.appendChild(newBtn);
+  }
+
+  function toggleWorkspaceActive(id) {
+    if (activeWorkspaceIds.includes(id)) {
+      if (activeWorkspaceIds.length === 1) return;
+      activeWorkspaceIds = activeWorkspaceIds.filter(x => x !== id);
+    } else {
+      activeWorkspaceIds = activeWorkspaceIds.concat([id]);
+    }
+    saveWorkspaces(); renderApp();
+  }
+
+  function createWorkspace() {
+    const ws = normalizeWorkspace({ id: uid(), name: 'New workspace', items: [], completedCollapsed: false });
+    workspaces.push(ws);
+    activeWorkspaceIds = [ws.id];
+    pendingFocusWorkspaceId = ws.id;
+    saveWorkspaces(); renderApp();
+    logActivity('task', 'Created workspace "' + ws.name + '"', ws.name);
+  }
+
+  function duplicateWorkspace(id) {
+    const ws = workspaces.find(w => w.id === id);
+    if (!ws) return;
+    const clone = normalizeWorkspace({
+      id: uid(),
+      name: ws.name + ' copy',
+      completedCollapsed: ws.completedCollapsed,
+      sprints: ws.sprints.map(s => ({ id: s.id, name: s.name, goal: s.goal, startDate: s.startDate, endDate: s.endDate })),
+      items: ws.items.map(item => ({
+        id: uid(), title: item.title, due: item.due, priority: item.priority, done: item.done,
+        completedDate: item.completedDate, createdAt: Date.now(),
+        status: item.status, storyPoints: item.storyPoints, sprintId: item.sprintId,
+        subs: item.subs.map(s => ({ id: uid(), title: s.title, done: s.done, due: s.due, priority: s.priority }))
+      }))
+    });
+    const idx = workspaces.findIndex(w => w.id === id);
+    workspaces.splice(idx + 1, 0, clone);
+    activeWorkspaceIds = [clone.id];
+    pendingFocusWorkspaceId = clone.id;
+    saveWorkspaces(); renderApp();
+    logActivity('task', 'Duplicated workspace "' + ws.name + '" as "' + clone.name + '"', clone.name);
+  }
+
+  function deleteWorkspace(id) {
+    const ws = workspaces.find(w => w.id === id);
+    if (!ws) return;
+    const ok = window.confirm('Delete "' + ws.name + '" and all its tasks? This cannot be undone.');
+    if (!ok) return;
+    workspaces = workspaces.filter(w => w.id !== id);
+    activeWorkspaceIds = activeWorkspaceIds.filter(x => x !== id);
+    if (workspaces.length > 0 && activeWorkspaceIds.length === 0) {
+      activeWorkspaceIds = [workspaces[0].id];
+    }
+    saveWorkspaces(); renderApp();
+    logActivity('delete', 'Deleted workspace "' + ws.name + '" and all its tasks', ws.name);
+  }
+
+  // ---------- backup import/export ----------
+  // Backup export/import go through the native save/open dialogs and the fs plugin
+  // rather than a Blob <a download> / <input type=file>, which don't reliably trigger
+  // a real save-as or file pick inside Tauri's webview.
+  async function fsWriteTextFile(path, text) {
+    const encoder = new TextEncoder();
+    await invoke('plugin:fs|write_text_file', encoder.encode(text), {
+      headers: { path: encodeURIComponent(path), options: JSON.stringify(undefined) }
+    });
+  }
+  async function fsReadTextFile(path) {
+    const arr = await invoke('plugin:fs|read_text_file', { path: path, options: undefined });
+    const bytes = arr instanceof ArrayBuffer ? new Uint8Array(arr) : Uint8Array.from(arr);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
+  async function exportBackup() {
+    const data = { exportedAt: new Date().toISOString(), workspaces: workspaces, labels: labels };
+    const json = JSON.stringify(data, null, 2);
+    let path;
+    try {
+      path = await invoke('plugin:dialog|save', {
+        options: {
+          title: 'Export backup',
+          defaultPath: 'task-tracker-backup-' + isoToDMY(todayIso()) + '.json',
+          filters: [{ name: 'JSON', extensions: ['json'] }]
+        }
+      });
+    } catch (e) { console.error('Save dialog failed', e); window.alert('Could not open the save dialog.'); return; }
+    if (!path) return;
+    try {
+      await fsWriteTextFile(path, json);
+    } catch (e) { console.error('Failed to write backup', e); window.alert('Could not save the backup file.'); }
+  }
+
+  async function importBackup() {
+    let path;
+    try {
+      path = await invoke('plugin:dialog|open', {
+        options: { title: 'Import backup', multiple: false, directory: false, filters: [{ name: 'JSON', extensions: ['json'] }] }
+      });
+    } catch (e) { console.error('Open dialog failed', e); window.alert('Could not open the file picker.'); return; }
+    if (!path) return;
+    let text;
+    try { text = await fsReadTextFile(path); }
+    catch (e) { console.error('Failed to read backup', e); window.alert('Could not read that file.'); return; }
+    let parsed;
+    try { parsed = JSON.parse(text); } catch (e) { window.alert('That file is not valid JSON.'); return; }
+    if (!parsed || !Array.isArray(parsed.workspaces)) { window.alert('That file does not look like a task tracker backup.'); return; }
+    const ok = window.confirm('Import this backup? It will replace everything currently in this tracker.');
+    if (!ok) return;
+    workspaces = parsed.workspaces.map(normalizeWorkspace);
+    activeWorkspaceIds = workspaces.length > 0 ? [workspaces[0].id] : [];
+    if (parsed.labels && typeof parsed.labels === 'object') { labels = Object.assign({}, DEFAULT_LABELS, parsed.labels); saveLabels(); }
+    saveWorkspaces();
+    renderApp();
+  }
+
+  // ---------- panel (one workspace's full mini-app) ----------
+  function renderPanel(ws) {
+    const panel = document.createElement('section');
+    panel.className = 'workspace-panel';
+    panel.setAttribute('data-ws-id', ws.id);
+    let searchQuery = '';
+    let priorityFilter = '';
+    let dateFilter = '';
+
+    const header = document.createElement('header');
+    const titleEl = document.createElement('h1');
+    titleEl.className = 'panel-title';
+    titleEl.contentEditable = 'true';
+    titleEl.textContent = ws.name;
+    titleEl.addEventListener('blur', () => {
+      const oldName = ws.name;
+      const val = titleEl.textContent.trim();
+      ws.name = val || ws.name;
+      titleEl.textContent = ws.name;
+      saveWorkspaces();
+      renderWorkspaceBar();
+      renderOverview();
+      if (ws.name !== oldName) logActivity('text', 'Renamed workspace "' + oldName + '" to "' + ws.name + '"', ws.name);
+    });
+    bindEnterToBlur(titleEl); bindPasteAsPlainText(titleEl);
+    header.appendChild(titleEl);
+
+    // Screen-hidden, print-only note showing which sprint (if any) the PDF was scoped
+    // to — kept in sync by renderSprintBar() whenever the sprint filter changes.
+    const sprintScopeNote = document.createElement('div'); sprintScopeNote.className = 'sprint-scope-print-note';
+    header.appendChild(sprintScopeNote);
+
+    const progressLine = document.createElement('div'); progressLine.className = 'progress-line';
+    const track = document.createElement('div'); track.className = 'progress-track';
+    const fill = document.createElement('div'); fill.className = 'progress-fill'; fill.style.width = '0%';
+    track.appendChild(fill);
+    const caption = document.createElement('div'); caption.className = 'progress-caption';
+    const countEl = document.createElement('span'); countEl.className = 'progress-count';
+    const pctEl = document.createElement('span'); pctEl.className = 'progress-percent';
+    caption.appendChild(countEl); caption.appendChild(pctEl);
+    progressLine.appendChild(track); progressLine.appendChild(caption);
+    header.appendChild(progressLine);
+    panel.appendChild(header);
+
+    function updateProgress() {
+      const total = ws.items.length;
+      const doneCount = ws.items.filter(i => i.done).length;
+      const pct = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+      fill.style.width = pct + '%';
+      countEl.textContent = doneCount + ' of ' + total + ' complete';
+      pctEl.textContent = pct + '%';
+    }
+
+    // ---- add card ----
+    const addCard = document.createElement('div'); addCard.className = 'add-card';
+    const addRow = document.createElement('div'); addRow.className = 'add-row';
+
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text'; titleInput.className = 'title-input';
+    titleInput.placeholder = labels.newItemPlaceholder || 'Add a task…';
+    titleInput.maxLength = 200; titleInput.autocomplete = 'off';
+    bindPlaceholderEdit(titleInput, 'newItemPlaceholder');
+
+    const dateWrap = document.createElement('span'); dateWrap.className = 'date-edit-wrap';
+    const dateInput = document.createElement('input');
+    dateInput.type = 'text'; dateInput.className = 'date-input date-mask-input';
+    dateInput.placeholder = labels.newItemDatePlaceholder || 'DD-MM-YYYY';
+    dateInput.inputMode = 'numeric'; dateInput.maxLength = 10; dateInput.autocomplete = 'off';
+    dateInput.addEventListener('input', () => maskDateInput(dateInput));
+    bindPlaceholderEdit(dateInput, 'newItemDatePlaceholder');
+    const calBtn = document.createElement('button');
+    calBtn.type = 'button'; calBtn.className = 'cal-btn'; calBtn.setAttribute('aria-label', 'Choose date from calendar');
+    calBtn.innerHTML = calendarSvg();
+    const nativeDate = document.createElement('input');
+    nativeDate.type = 'date'; nativeDate.className = 'native-date-hidden'; nativeDate.tabIndex = -1;
+    nativeDate.setAttribute('aria-hidden', 'true');
+    calBtn.addEventListener('mousedown', e => e.preventDefault());
+    calBtn.addEventListener('click', e => {
+      e.preventDefault();
+      openCalendarPopover(calBtn, nativeDate.value || null, iso => { nativeDate.value = iso; nativeDate.dispatchEvent(new Event('change')); });
+    });
+    nativeDate.addEventListener('change', () => { if (nativeDate.value) { dateInput.value = isoToDMY(nativeDate.value); } });
+    dateWrap.appendChild(dateInput); dateWrap.appendChild(calBtn); dateWrap.appendChild(nativeDate);
+
+    const prioritySelect = document.createElement('select');
+    prioritySelect.className = 'priority-select styled-select'; prioritySelect.setAttribute('data-val', '');
+    [['', 'No priority'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']].forEach(pair => {
+      const opt = document.createElement('option'); opt.value = pair[0]; opt.textContent = pair[1];
+      prioritySelect.appendChild(opt);
+    });
+    prioritySelect.addEventListener('change', function () { this.setAttribute('data-val', this.value); });
+
+    const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'primary';
+    const addBtnLabel = document.createElement('span');
+    addBtnLabel.className = 'editable'; addBtnLabel.setAttribute('data-key', 'addBtnLabel'); addBtnLabel.contentEditable = 'false';
+    addBtnLabel.textContent = labels.addBtnLabel;
+    bindEditable(addBtnLabel);
+    addBtn.appendChild(addBtnLabel);
+
+    function doAddItem() {
+      if (customizing) return;
+      const title = titleInput.value.trim();
+      if (!title) { titleInput.focus(); return; }
+      let due = null;
+      if (dateInput.value.trim()) {
+        due = dmyToIso(dateInput.value.trim());
+        if (!due) { dateInput.classList.add('invalid'); setTimeout(() => dateInput.classList.remove('invalid'), 900); }
+      }
+      ws.items.push({
+        id: uid(), title: title, due: due, priority: prioritySelect.value || null, done: false,
+        completedDate: null, subs: [], createdAt: Date.now(),
+        status: 'todo', storyPoints: null, sprintId: ws.activeSprintId !== 'all' && ws.activeSprintId !== 'backlog' ? ws.activeSprintId : null
+      });
+      saveWorkspaces();
+      logActivity('task', 'Added "' + title + '"', ws.name);
+      titleInput.value = ''; dateInput.value = ''; prioritySelect.value = ''; prioritySelect.setAttribute('data-val', ''); nativeDate.value = '';
+      titleInput.focus();
+      renderList(); renderOverview();
+    }
+    addBtn.addEventListener('click', doAddItem);
+    titleInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !customizing) doAddItem(); });
+
+    addRow.appendChild(titleInput); addRow.appendChild(dateWrap); addRow.appendChild(prioritySelect); addRow.appendChild(addBtn);
+    addCard.appendChild(addRow);
+    panel.appendChild(addCard);
+
+    // ---- search ----
+    const searchRow = document.createElement('div'); searchRow.className = 'search-row';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text'; searchInput.className = 'search-input'; searchInput.placeholder = 'Filter tasks…'; searchInput.autocomplete = 'off';
+    searchInput.addEventListener('input', () => { searchQuery = searchInput.value.trim().toLowerCase(); renderList(); });
+    searchRow.appendChild(searchInput);
+    panel.appendChild(searchRow);
+
+    // ---- filters ----
+    const filterRow = document.createElement('div'); filterRow.className = 'filter-row';
+
+    function buildFilterChips(options, getValue, setValue) {
+      const group = document.createElement('div'); group.className = 'filter-group';
+      const buttons = [];
+      options.forEach(pair => {
+        const val = pair[0], label = pair[1];
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.className = 'chip-btn filter-chip';
+        btn.textContent = label;
+        if (getValue() === val) btn.classList.add('active');
+        btn.addEventListener('click', () => {
+          setValue(val);
+          buttons.forEach(b => b.classList.toggle('active', b === btn));
+          renderList();
+        });
+        buttons.push(btn);
+        group.appendChild(btn);
+      });
+      return group;
+    }
+
+    filterRow.appendChild(buildFilterChips(
+      [['', 'All priorities'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low'], ['none', 'No priority']],
+      () => priorityFilter, v => { priorityFilter = v; }
+    ));
+    filterRow.appendChild(buildFilterChips(
+      [['', 'All dates'], ['today', 'Today'], ['week', 'This week'], ['later', 'Later'], ['none', 'No date']],
+      () => dateFilter, v => { dateFilter = v; }
+    ));
+    panel.appendChild(filterRow);
+
+    // ---- view toggle + sprint bar ----
+    const viewSprintRow = document.createElement('div'); viewSprintRow.className = 'view-sprint-row';
+    const viewToggle = document.createElement('div'); viewToggle.className = 'view-toggle';
+    const listViewBtn = document.createElement('button'); listViewBtn.type = 'button'; listViewBtn.className = 'chip-btn view-btn'; listViewBtn.textContent = 'List';
+    const boardViewBtn = document.createElement('button'); boardViewBtn.type = 'button'; boardViewBtn.className = 'chip-btn view-btn'; boardViewBtn.textContent = 'Board';
+    function updateViewButtons() {
+      listViewBtn.classList.toggle('active', ws.view === 'list');
+      boardViewBtn.classList.toggle('active', ws.view === 'board');
+      panel.classList.toggle('showing-board', ws.view === 'board');
+    }
+    listViewBtn.addEventListener('click', () => { ws.view = 'list'; saveWorkspaces(); updateViewButtons(); });
+    boardViewBtn.addEventListener('click', () => { ws.view = 'board'; saveWorkspaces(); updateViewButtons(); });
+    viewToggle.appendChild(listViewBtn); viewToggle.appendChild(boardViewBtn);
+
+    const sprintBar = document.createElement('div'); sprintBar.className = 'sprint-bar';
+    function renderSprintBar() {
+      sprintBar.innerHTML = '';
+      const sel = document.createElement('select'); sel.className = 'sprint-select styled-select';
+      sel.title = 'Show only tasks in the selected sprint (or Backlog for unassigned tasks, or All tasks for everything).';
+      [['all', 'All tasks'], ['backlog', 'Backlog']].concat(ws.sprints.map(s => [s.id, s.name])).forEach(pair => {
+        const opt = document.createElement('option'); opt.value = pair[0]; opt.textContent = pair[1];
+        if (ws.activeSprintId === pair[0]) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', () => { ws.activeSprintId = sel.value; saveWorkspaces(); renderSprintBar(); renderList(); });
+      sprintBar.appendChild(sel);
+
+      const activeSprint = ws.sprints.find(s => s.id === ws.activeSprintId);
+      sprintScopeNote.textContent = activeSprint ? 'Sprint: ' + activeSprint.name
+        : ws.activeSprintId === 'backlog' ? 'Backlog (no sprint)' : '';
+      if (activeSprint) {
+        const info = document.createElement('span'); info.className = 'sprint-info';
+        let text = '';
+        if (activeSprint.startDate || activeSprint.endDate) {
+          text += (activeSprint.startDate ? isoToDMY(activeSprint.startDate) : '?') + ' – ' + (activeSprint.endDate ? isoToDMY(activeSprint.endDate) : '?');
+        }
+        if (activeSprint.goal) text += (text ? ' · ' : '') + activeSprint.goal;
+        info.textContent = text;
+        sprintBar.appendChild(info);
+      }
+
+      if (ws.sprints.length > 0) {
+        const manageBtn = document.createElement('button'); manageBtn.type = 'button'; manageBtn.className = 'chip-btn';
+        manageBtn.textContent = 'Manage sprints';
+        manageBtn.title = 'Rename or delete sprints.';
+        manageBtn.addEventListener('click', () => openSprintManageModal(ws, () => { renderSprintBar(); renderList(); }));
+        sprintBar.appendChild(manageBtn);
+      }
+
+      const newBtn = document.createElement('button'); newBtn.type = 'button'; newBtn.className = 'chip-btn'; newBtn.textContent = '+ New sprint';
+      newBtn.addEventListener('click', () => openSprintModal(ws, null, () => { renderSprintBar(); renderList(); }));
+      sprintBar.appendChild(newBtn);
+    }
+    renderSprintBar();
+    updateViewButtons();
+
+    viewSprintRow.appendChild(viewToggle); viewSprintRow.appendChild(sprintBar);
+    panel.appendChild(viewSprintRow);
+
+    // ---- list ----
+    const listContainer = document.createElement('div'); listContainer.className = 'panel-list';
+    panel.appendChild(listContainer);
+
+    // ---- board ----
+    const boardContainer = document.createElement('div'); boardContainer.className = 'board-container';
+    panel.appendChild(boardContainer);
+    let dragCardItem = null;
+
+    function buildStoryPointsControl(item) {
+      if (item._editingPoints) {
+        const input = document.createElement('input');
+        input.type = 'number'; input.min = '0'; input.max = '999'; input.step = '1'; input.className = 'points-input';
+        input.value = item.storyPoints != null ? item.storyPoints : '';
+        input.placeholder = 'pts';
+        input.style.width = '48px'; input.style.fontSize = '11px'; input.style.padding = '2px 5px';
+        input.style.border = '1px solid var(--line)'; input.style.borderRadius = '6px'; input.style.background = 'var(--surface)'; input.style.color = 'var(--ink)';
+        const commit = () => {
+          const raw = input.value.trim();
+          const before = item.storyPoints;
+          item.storyPoints = raw === '' ? null : Math.max(0, parseInt(raw, 10) || 0);
+          item._editingPoints = false;
+          saveWorkspaces(); renderList(); renderOverview();
+          if (item.storyPoints !== before) logActivity('task', 'Set points of "' + item.title + '" to ' + (item.storyPoints != null ? item.storyPoints : 'none'), ws.name);
+        };
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+          if (e.key === 'Escape') { item._editingPoints = false; renderList(); }
+        });
+        setTimeout(() => { input.focus(); input.select(); }, 0);
+        return input;
+      }
+      const span = document.createElement('span'); span.className = 'board-card-points';
+      span.style.cursor = 'pointer';
+      if (item.storyPoints) { span.textContent = item.storyPoints + ' pts'; }
+      else { span.textContent = 'Add points'; span.style.opacity = '0.55'; span.style.background = 'none'; span.style.color = 'var(--ink-soft)'; }
+      span.addEventListener('click', () => { item._editingPoints = true; renderList(); });
+      return span;
+    }
+
+    function buildSprintSelectFor(entity) {
+      const sel = document.createElement('select'); sel.className = 'sprint-assign-select styled-select';
+      sel.title = 'Assign this task to a sprint, or leave it in the Backlog.';
+      sel.style.fontSize = '11px'; sel.style.border = 'none'; sel.style.backgroundColor = 'transparent'; sel.style.color = 'var(--ink-soft)'; sel.style.font = 'inherit';
+      [['', 'Backlog']].concat(ws.sprints.map(s => [s.id, s.name])).forEach(pair => {
+        const opt = document.createElement('option'); opt.value = pair[0]; opt.textContent = pair[1];
+        if ((entity.sprintId || '') === pair[0]) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', () => {
+        entity.sprintId = sel.value || null; saveWorkspaces(); renderList();
+        const sprintName = entity.sprintId ? (ws.sprints.find(s => s.id === entity.sprintId) || {}).name : null;
+        logActivity('task', 'Assigned "' + entity.title + '" to ' + (sprintName || 'Backlog'), ws.name);
+      });
+      return sel;
+    }
+
+    function buildBoardCard(item) {
+      const card = document.createElement('div'); card.className = 'board-card'; card.draggable = true;
+      card.addEventListener('dragstart', e => {
+        dragCardItem = item;
+        card.classList.add('dragging');
+        // WebKitGTK needs dataTransfer actually populated (unlike Chromium) for the drop to register.
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', item.id); } catch (err) {}
+        }
+      });
+      card.addEventListener('dragend', () => { dragCardItem = null; card.classList.remove('dragging'); });
+
+      const del = document.createElement('button');
+      del.className = 'board-card-delete'; del.setAttribute('aria-label', 'Delete task'); del.textContent = '×';
+      del.setAttribute('draggable', 'false');
+      del.addEventListener('mousedown', e => e.stopPropagation());
+      del.addEventListener('click', () => {
+        const idx = ws.items.findIndex(i => i.id === item.id);
+        const removed = ws.items[idx];
+        ws.items = ws.items.filter(i => i.id !== item.id);
+        saveWorkspaces(); renderList(); renderOverview();
+        logActivity('delete', 'Deleted "' + removed.title + '"', ws.name);
+        showUndoToast('Deleted "' + removed.title + '"', () => {
+          ws.items.splice(idx, 0, removed); saveWorkspaces(); renderList(); renderOverview();
+          logActivity('undo', 'Undid delete of "' + removed.title + '"', ws.name);
+        });
+      });
+      card.appendChild(del);
+
+      const title = document.createElement('div');
+      title.className = 'board-card-title' + (item.done ? ' done' : '');
+      title.contentEditable = 'true';
+      title.setAttribute('draggable', 'false');
+      title.textContent = item.title;
+      title.addEventListener('blur', () => {
+        const oldTitle = item.title;
+        item.title = title.textContent.trim() || item.title; title.textContent = item.title; saveWorkspaces(); renderOverview();
+        if (item.title !== oldTitle) logActivity('text', 'Renamed "' + oldTitle + '" to "' + item.title + '"', ws.name);
+      });
+      bindEnterToBlur(title); bindPasteAsPlainText(title);
+      card.appendChild(title);
+
+      const meta = document.createElement('div'); meta.className = 'board-card-meta';
+      meta.appendChild(buildDateControl(item, 'due', '_editingDue', 'Due ', true, 'Set due date', 'No due date'));
+      meta.appendChild(buildPrioritySelectFor(item, true));
+      meta.appendChild(buildStoryPointsControl(item));
+      if (ws.sprints.length > 0) meta.appendChild(buildSprintSelectFor(item));
+      card.appendChild(meta);
+      return card;
+    }
+
+    function renderBoard() {
+      boardContainer.innerHTML = '';
+      const query = searchQuery;
+      let source = ws.items;
+      if (query) source = source.filter(i => i.title.toLowerCase().includes(query));
+      if (priorityFilter) source = source.filter(i => priorityFilter === 'none' ? !i.priority : i.priority === priorityFilter);
+      if (dateFilter) source = source.filter(i => computeBucket(i.due) === dateFilter);
+      if (ws.activeSprintId === 'backlog') source = source.filter(i => !i.sprintId);
+      else if (ws.activeSprintId !== 'all') source = source.filter(i => i.sprintId === ws.activeSprintId);
+
+      const columnsWrap = document.createElement('div'); columnsWrap.className = 'board-columns';
+      STATUSES.forEach(status => {
+        const col = document.createElement('div'); col.className = 'board-column';
+        const header = document.createElement('div'); header.className = 'board-column-header';
+        const title = document.createElement('span');
+        title.className = 'editable'; title.setAttribute('data-key', STATUS_LABEL_KEY[status]); title.contentEditable = 'false';
+        title.textContent = labels[STATUS_LABEL_KEY[status]];
+        bindEditable(title);
+        const colItems = source.filter(i => i.status === status);
+        const points = colItems.reduce((sum, i) => sum + (i.storyPoints || 0), 0);
+        const pointsSpan = document.createElement('span'); pointsSpan.className = 'board-column-points';
+        pointsSpan.textContent = colItems.length + (points ? ' · ' + points + ' pts' : '');
+        header.appendChild(title); header.appendChild(pointsSpan);
+        col.appendChild(header);
+
+        const cardsWrap = document.createElement('div'); cardsWrap.className = 'board-cards';
+        cardsWrap.addEventListener('dragover', e => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          cardsWrap.classList.add('drag-over');
+        });
+        cardsWrap.addEventListener('dragleave', () => cardsWrap.classList.remove('drag-over'));
+        cardsWrap.addEventListener('drop', e => {
+          e.preventDefault();
+          cardsWrap.classList.remove('drag-over');
+          if (!dragCardItem) return;
+          const prevStatus = dragCardItem.status;
+          dragCardItem.status = status;
+          if (status === 'done') { dragCardItem.done = true; if (!dragCardItem.completedDate) dragCardItem.completedDate = todayIso(); }
+          else { dragCardItem.done = false; dragCardItem.completedDate = null; }
+          saveWorkspaces(); renderList(); renderOverview();
+          if (prevStatus !== status) {
+            logActivity('task', 'Moved "' + dragCardItem.title + '" to ' + labels[STATUS_LABEL_KEY[status]], ws.name);
+          }
+        });
+
+        if (colItems.length === 0) {
+          const hint = document.createElement('div'); hint.className = 'board-empty-hint'; hint.textContent = 'No tasks';
+          cardsWrap.appendChild(hint);
+        }
+        colItems.forEach(item => cardsWrap.appendChild(buildBoardCard(item)));
+        col.appendChild(cardsWrap);
+        columnsWrap.appendChild(col);
+      });
+      boardContainer.appendChild(columnsWrap);
+    }
+
+    function buildDateControl(entity, field, editFlag, prefixLabel, showOverdue, emptyLabel, printEmptyLabel) {
+      if (entity[editFlag]) {
+        const wrapper = document.createElement('span'); wrapper.className = 'date-edit-wrap';
+        const input = document.createElement('input');
+        input.type = 'text'; input.className = 'date-input date-mask-input'; input.placeholder = 'DD-MM-YYYY';
+        input.inputMode = 'numeric'; input.maxLength = 10; input.style.fontSize = '12.5px'; input.style.padding = '4px 7px';
+        input.value = isoToDMY(entity[field]);
+        input.addEventListener('input', () => maskDateInput(input));
+        const commit = () => {
+          if (!entity[editFlag]) return;
+          const raw = input.value.trim();
+          if (raw === '') {
+            entity[field] = null; entity[editFlag] = false; saveWorkspaces(); renderList(); renderOverview();
+            if (field === 'due') logActivity('task', 'Cleared due date of "' + entity.title + '"', ws.name);
+            return;
+          }
+          const iso = dmyToIso(raw);
+          if (iso) {
+            entity[field] = iso; entity[editFlag] = false; saveWorkspaces(); renderList(); renderOverview();
+            if (field === 'due') logActivity('task', 'Set due date of "' + entity.title + '" to ' + isoToDMY(iso), ws.name);
+          }
+          else { input.classList.add('invalid'); setTimeout(() => { entity[editFlag] = false; renderList(); }, 900); }
+        };
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { entity[editFlag] = false; renderList(); }
+        });
+        const hiddenNative = document.createElement('input');
+        hiddenNative.type = 'date'; hiddenNative.className = 'native-date-hidden'; hiddenNative.tabIndex = -1;
+        hiddenNative.setAttribute('aria-hidden', 'true');
+        if (entity[field]) hiddenNative.value = entity[field];
+        hiddenNative.addEventListener('change', () => {
+          if (!entity[editFlag]) return;
+          if (hiddenNative.value) {
+            entity[field] = hiddenNative.value; entity[editFlag] = false; saveWorkspaces(); renderList(); renderOverview();
+            if (field === 'due') logActivity('task', 'Set due date of "' + entity.title + '" to ' + isoToDMY(hiddenNative.value), ws.name);
+          }
+        });
+        const calBtn2 = document.createElement('button');
+        calBtn2.type = 'button'; calBtn2.className = 'cal-btn'; calBtn2.setAttribute('aria-label', 'Choose date from calendar');
+        calBtn2.innerHTML = calendarSvg();
+        calBtn2.addEventListener('mousedown', e => e.preventDefault());
+        calBtn2.addEventListener('click', e => {
+          e.preventDefault();
+          openCalendarPopover(calBtn2, hiddenNative.value || null, iso => { hiddenNative.value = iso; hiddenNative.dispatchEvent(new Event('change')); });
+        });
+        wrapper.addEventListener('focusout', () => {
+          setTimeout(() => { if (!wrapper.contains(document.activeElement)) commit(); }, 0);
+        });
+        wrapper.appendChild(input); wrapper.appendChild(calBtn2); wrapper.appendChild(hiddenNative);
+        setTimeout(() => input.focus(), 0);
+        return wrapper;
+      }
+      const span = document.createElement('span');
+      const overdue = showOverdue && isOverdue(entity[field], entity.done);
+      span.className = 'due-badge' + (overdue ? ' overdue' : '');
+      if (entity[field]) {
+        span.textContent = (overdue ? 'Overdue — ' : prefixLabel) + isoToDMY(entity[field]);
+      } else if (printEmptyLabel !== undefined) {
+        // The interactive prompt ("Set due date") only makes sense on screen; a static
+        // PDF gets its own wording (or nothing at all, for sub-tasks) instead.
+        const screenText = document.createElement('span'); screenText.className = 'due-screen-text'; screenText.textContent = emptyLabel;
+        const printText = document.createElement('span'); printText.className = 'due-print-text'; printText.textContent = printEmptyLabel;
+        span.appendChild(screenText); span.appendChild(printText);
+      } else {
+        span.textContent = emptyLabel;
+      }
+      span.addEventListener('click', () => { entity[editFlag] = true; renderList(); });
+      return span;
+    }
+
+    function buildSubsEl(item) {
+      const wrap = document.createElement('div'); wrap.className = 'subs';
+      const ul = document.createElement('ul'); ul.className = 'sub-items';
+      item.subs.forEach(sub => {
+        const li = document.createElement('li'); li.className = 'sub-item' + (sub.done ? ' done' : '');
+        const row = document.createElement('div'); row.className = 'sub-item-row';
+
+        const cb = document.createElement('button');
+        cb.className = 'checkbox sub' + (sub.done ? ' done' : '');
+        cb.setAttribute('aria-label', sub.done ? 'Mark sub-task incomplete' : 'Mark sub-task complete');
+        cb.innerHTML = checkSvg();
+        cb.addEventListener('click', () => {
+          sub.done = !sub.done; syncItemStatus(item); saveWorkspaces(); renderList();
+          logActivity('task', (sub.done ? 'Completed' : 'Reopened') + ' sub-task "' + sub.title + '"', ws.name);
+        });
+
+        const t = document.createElement('div');
+        t.className = 'sub-title'; t.contentEditable = 'true'; t.textContent = sub.title;
+        t.addEventListener('blur', () => {
+          const oldTitle = sub.title;
+          sub.title = t.textContent.trim() || sub.title; t.textContent = sub.title; saveWorkspaces();
+          if (sub.title !== oldTitle) logActivity('text', 'Renamed sub-task "' + oldTitle + '" to "' + sub.title + '"', ws.name);
+        });
+        bindEnterToBlur(t); bindPasteAsPlainText(t);
+
+        const del = document.createElement('button');
+        del.className = 'sub-delete'; del.setAttribute('aria-label', 'Delete sub-task'); del.textContent = '×';
+        del.addEventListener('click', () => {
+          const idx = item.subs.findIndex(s => s.id === sub.id);
+          const removed = item.subs[idx];
+          item.subs = item.subs.filter(s => s.id !== sub.id);
+          saveWorkspaces(); renderList();
+          logActivity('delete', 'Deleted sub-task "' + removed.title + '"', ws.name);
+          showUndoToast('Deleted "' + removed.title + '"', () => {
+            item.subs.splice(idx, 0, removed); saveWorkspaces(); renderList();
+            logActivity('undo', 'Undid delete of sub-task "' + removed.title + '"', ws.name);
+          });
+        });
+
+        row.appendChild(cb); row.appendChild(t); row.appendChild(del);
+        li.appendChild(row);
+
+        const metaRow = document.createElement('div'); metaRow.className = 'sub-item-meta';
+        const dueWrap = document.createElement('span');
+        dueWrap.appendChild(buildDateControl(sub, 'due', '_editingDue', 'Due ', true, 'Set due date', ''));
+        metaRow.appendChild(dueWrap);
+        metaRow.appendChild(buildPrioritySelectFor(sub, true));
+        li.appendChild(metaRow);
+
+        ul.appendChild(li);
+      });
+      wrap.appendChild(ul);
+
+      const addRow2 = document.createElement('div'); addRow2.className = 'add-sub-row';
+      const input2 = document.createElement('input');
+      input2.type = 'text'; input2.placeholder = 'Add a sub-task…'; input2.maxLength = 200; input2.autocomplete = 'off';
+      const btn2 = document.createElement('button'); btn2.type = 'button'; btn2.textContent = '+';
+      const addSub = () => {
+        const val = input2.value.trim();
+        if (!val) { input2.focus(); return; }
+        item.subs.push({ id: uid(), title: val, done: false, due: null, priority: null });
+        saveWorkspaces(); input2.value = ''; renderList();
+        logActivity('task', 'Added sub-task "' + val + '"', ws.name);
+      };
+      btn2.addEventListener('click', addSub);
+      input2.addEventListener('keydown', e => { if (e.key === 'Enter') addSub(); });
+      addRow2.appendChild(input2); addRow2.appendChild(btn2);
+      wrap.appendChild(addRow2);
+      return wrap;
+    }
+
+    function buildPrioritySelectFor(entity, small) {
+      const sel = document.createElement('select');
+      sel.className = 'priority-screen-select styled-select';
+      sel.setAttribute('aria-label', 'Priority');
+      ['', 'low', 'medium', 'high'].forEach(v => {
+        const opt = document.createElement('option'); opt.value = v; opt.textContent = v ? PRIORITY_TEXT[v] : 'No priority';
+        if ((entity.priority || '') === v) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.title = 'Priority';
+      sel.style.color = entity.priority ? 'var(--priority-' + entity.priority + ')' : 'var(--ink-soft)';
+      sel.style.border = 'none'; sel.style.backgroundColor = 'transparent'; sel.style.font = 'inherit';
+      sel.style.fontWeight = '600';
+      sel.style.paddingTop = '0'; sel.style.paddingBottom = '0'; sel.style.paddingLeft = '0';
+      if (small) sel.style.fontSize = '11px';
+      sel.addEventListener('change', () => {
+        entity.priority = sel.value || null; saveWorkspaces(); renderList();
+        logActivity('task', 'Set priority of "' + entity.title + '" to ' + (entity.priority ? PRIORITY_TEXT[entity.priority] : 'none'), ws.name);
+      });
+
+      // A <select> renders as a live, editable form widget in the exported PDF rather
+      // than plain text, so print output gets its own static label instead.
+      const printText = document.createElement('span'); printText.className = 'priority-print-text';
+      printText.style.color = entity.priority ? 'var(--priority-' + entity.priority + ')' : 'var(--ink-soft)';
+      printText.style.fontWeight = '600';
+      printText.textContent = entity.priority ? PRIORITY_TEXT[entity.priority] + ' priority' : 'No priority';
+
+      const wrap = document.createElement('span'); wrap.className = 'priority-wrap';
+      wrap.appendChild(sel); wrap.appendChild(printText);
+      return wrap;
+    }
+
+    function buildItemEl(item, list) {
+      const li = document.createElement('li'); li.className = 'item' + (item.done ? ' done' : '');
+      const row = document.createElement('div'); row.className = 'item-row';
+
+      const idxInList = list.indexOf(item);
+      const moveWrap = document.createElement('div'); moveWrap.className = 'item-move';
+      const upBtn = document.createElement('button');
+      upBtn.type = 'button'; upBtn.className = 'move-btn'; upBtn.setAttribute('aria-label', 'Move up'); upBtn.textContent = '▲';
+      upBtn.disabled = idxInList <= 0;
+      upBtn.addEventListener('click', () => moveItem(item, list, -1));
+      const downBtn = document.createElement('button');
+      downBtn.type = 'button'; downBtn.className = 'move-btn'; downBtn.setAttribute('aria-label', 'Move down'); downBtn.textContent = '▼';
+      downBtn.disabled = idxInList >= list.length - 1;
+      downBtn.addEventListener('click', () => moveItem(item, list, 1));
+      moveWrap.appendChild(upBtn); moveWrap.appendChild(downBtn);
+
+      const cb = document.createElement('button');
+      cb.className = 'checkbox' + (item.done ? ' done' : '');
+      cb.setAttribute('aria-label', item.done ? 'Mark incomplete' : 'Mark complete');
+      cb.innerHTML = checkSvg();
+      cb.addEventListener('click', () => {
+        item.done = !item.done;
+        if (item.done) { item.completedDate = todayIso(); }
+        else { item.completedDate = null; item._editingCompleted = false; }
+        syncItemStatus(item);
+        saveWorkspaces(); renderList(); renderOverview();
+        logActivity('task', (item.done ? 'Completed' : 'Reopened') + ' "' + item.title + '"', ws.name);
+      });
+
+      const body = document.createElement('div'); body.className = 'item-body';
+      const t = document.createElement('div');
+      t.className = 'item-title'; t.contentEditable = 'true'; t.textContent = item.title;
+      t.addEventListener('blur', () => {
+        const oldTitle = item.title;
+        item.title = t.textContent.trim() || item.title; t.textContent = item.title; saveWorkspaces(); renderOverview();
+        if (item.title !== oldTitle) logActivity('text', 'Renamed "' + oldTitle + '" to "' + item.title + '"', ws.name);
+      });
+      bindEnterToBlur(t); bindPasteAsPlainText(t);
+      body.appendChild(t);
+
+      const meta = document.createElement('div'); meta.className = 'item-meta';
+      const dueWrap = document.createElement('span');
+      dueWrap.appendChild(buildDateControl(item, 'due', '_editingDue', 'Due ', true, 'Set due date', 'No due date'));
+      meta.appendChild(dueWrap);
+
+      if (item.done) {
+        const compWrap = document.createElement('span');
+        compWrap.appendChild(buildDateControl(item, 'completedDate', '_editingCompleted', 'Completed ', false, 'Set completion date'));
+        meta.appendChild(compWrap);
+      }
+
+      meta.appendChild(buildPrioritySelectFor(item, false));
+      meta.appendChild(buildStoryPointsControl(item));
+      if (ws.sprints.length > 0) meta.appendChild(buildSprintSelectFor(item));
+
+      if (item.subs.length > 0) {
+        const subCount = document.createElement('span'); subCount.className = 'sub-progress';
+        const doneSubs = item.subs.filter(s => s.done).length;
+        subCount.textContent = doneSubs + '/' + item.subs.length + ' sub-tasks';
+        meta.appendChild(subCount);
+      }
+      body.appendChild(meta);
+
+      const del = document.createElement('button');
+      del.className = 'delete-btn'; del.setAttribute('aria-label', 'Delete task'); del.textContent = '×';
+      del.addEventListener('click', () => {
+        const idx = ws.items.findIndex(i => i.id === item.id);
+        const removed = ws.items[idx];
+        ws.items = ws.items.filter(i => i.id !== item.id);
+        saveWorkspaces(); renderList(); renderOverview();
+        logActivity('delete', 'Deleted "' + removed.title + '"', ws.name);
+        showUndoToast('Deleted "' + removed.title + '"', () => {
+          ws.items.splice(idx, 0, removed); saveWorkspaces(); renderList(); renderOverview();
+          logActivity('undo', 'Undid delete of "' + removed.title + '"', ws.name);
+        });
+      });
+
+      row.appendChild(moveWrap); row.appendChild(cb); row.appendChild(body); row.appendChild(del);
+      li.appendChild(row);
+      li.appendChild(buildSubsEl(item));
+      return li;
+    }
+
+    function buildItemsList(list) {
+      const ul = document.createElement('ul'); ul.className = 'items';
+      list.forEach(item => ul.appendChild(buildItemEl(item, list)));
+      return ul;
+    }
+
+    function moveItem(item, list, direction) {
+      const idx = list.indexOf(item);
+      const target = list[idx + direction];
+      if (!target) return;
+      const aIdx = ws.items.indexOf(item);
+      const bIdx = ws.items.indexOf(target);
+      ws.items[aIdx] = target; ws.items[bIdx] = item;
+      saveWorkspaces(); renderList(); renderOverview();
+    }
+
+    function renderList() {
+      renderBoard();
+      listContainer.innerHTML = '';
+      const query = searchQuery;
+      let source = ws.items;
+      if (query) source = source.filter(i => i.title.toLowerCase().includes(query));
+      if (priorityFilter) source = source.filter(i => priorityFilter === 'none' ? !i.priority : i.priority === priorityFilter);
+      if (dateFilter) source = source.filter(i => computeBucket(i.due) === dateFilter);
+      if (ws.activeSprintId === 'backlog') source = source.filter(i => !i.sprintId);
+      else if (ws.activeSprintId !== 'all') source = source.filter(i => i.sprintId === ws.activeSprintId);
+
+      if (ws.items.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state editable'; empty.setAttribute('data-key', 'emptyStateText'); empty.contentEditable = 'false';
+        empty.textContent = labels.emptyStateText;
+        bindEditable(empty);
+        listContainer.appendChild(empty);
+        updateProgress(); updateEditableState();
+        return;
+      }
+      if (source.length === 0) {
+        const noMatch = document.createElement('div'); noMatch.className = 'no-match-state';
+        noMatch.textContent = query ? 'No tasks match "' + searchInput.value.trim() + '".' : 'No tasks match the current filters.';
+        listContainer.appendChild(noMatch);
+        updateProgress(); updateEditableState();
+        return;
+      }
+
+      // Manual order (see the move up/down buttons) rather than an automatic sort, so
+      // reordering has a visible, lasting effect. Priority/date narrow the list instead.
+      const pending = source.filter(i => !i.done);
+      const doneItems = source.filter(i => i.done);
+
+      if (pending.length > 0) {
+        const label = document.createElement('div');
+        label.className = 'group-label editable'; label.setAttribute('data-key', 'pendingLabel'); label.contentEditable = 'false';
+        label.textContent = labels.pendingLabel;
+        bindEditable(label);
+        listContainer.appendChild(label);
+        listContainer.appendChild(buildItemsList(pending));
+      }
+      if (doneItems.length > 0) {
+        const doneSection = document.createElement('div'); doneSection.className = 'done-section';
+        const labelRow = document.createElement('div'); labelRow.className = 'group-label-row';
+        const chevron = document.createElement('button');
+        chevron.type = 'button'; chevron.className = 'collapse-chevron';
+        chevron.setAttribute('aria-label', ws.completedCollapsed ? 'Expand completed' : 'Collapse completed');
+        chevron.textContent = ws.completedCollapsed ? '▸' : '▾';
+        chevron.addEventListener('click', () => { ws.completedCollapsed = !ws.completedCollapsed; saveWorkspaces(); renderList(); });
+        labelRow.appendChild(chevron);
+        const label = document.createElement('span');
+        label.className = 'editable'; label.setAttribute('data-key', 'doneLabel'); label.contentEditable = 'false';
+        label.textContent = labels.doneLabel;
+        bindEditable(label);
+        labelRow.appendChild(label);
+        const count = document.createElement('span'); count.className = 'group-count'; count.textContent = '(' + doneItems.length + ')';
+        labelRow.appendChild(count);
+        doneSection.appendChild(labelRow);
+        const doneList = buildItemsList(doneItems);
+        if (ws.completedCollapsed) doneList.classList.add('collapsed-list');
+        if (ws.completedCollapsed) doneList.style.display = 'none';
+        doneSection.appendChild(doneList);
+        listContainer.appendChild(doneSection);
+      }
+      updateProgress(); updateEditableState();
+    }
+
+    renderList();
+    return panel;
+  }
+
+  // ---------- app-level render ----------
+  function renderApp() {
+    renderWorkspaceBar();
+    const panelsContainer = document.getElementById('panelsContainer');
+    panelsContainer.innerHTML = '';
+    const activeWs = workspaces.filter(w => activeWorkspaceIds.includes(w.id));
+    panelsContainer.classList.toggle('stretch', activeWs.length === 1 || activeWs.length === 2);
+    if (activeWs.length === 0) {
+      const empty = document.createElement('div'); empty.className = 'no-workspace-state';
+      empty.textContent = 'No workspace open. Create one to get started.';
+      panelsContainer.appendChild(empty);
+    } else {
+      activeWs.forEach(ws => { panelsContainer.appendChild(renderPanel(ws)); });
+    }
+    renderOverview();
+    applyLabels();
+    updateEditableState();
+
+    if (pendingFocusWorkspaceId) {
+      const target = panelsContainer.querySelector('.workspace-panel[data-ws-id="' + pendingFocusWorkspaceId + '"] .panel-title');
+      if (target) selectAllContentEditable(target);
+      pendingFocusWorkspaceId = null;
+    }
+  }
+
+  // ---------- toolbar wiring ----------
+  document.getElementById('customizeBtn').addEventListener('click', () => {
+    customizing = !customizing;
+    updateEditableState();
+  });
+  document.getElementById('resetTextBtn').addEventListener('click', () => {
+    labels = Object.assign({}, DEFAULT_LABELS);
+    saveLabels();
+    renderApp();
+  });
+  // ---- Scrum PDF style: workspaces grouped by board status (To do / In progress / Done)
+  // instead of pending/completed, with story points shown. Built fresh (not cloned) since
+  // it has no on-screen equivalent view. ----
+  function buildScrumPdfItemRow(item) {
+    const li = document.createElement('li'); li.className = 'item' + (item.done ? ' done' : '');
+    const row = document.createElement('div'); row.className = 'item-row';
+    const body = document.createElement('div'); body.className = 'item-body';
+    const title = document.createElement('div'); title.className = 'item-title'; title.textContent = item.title;
+    body.appendChild(title);
+    const meta = document.createElement('div'); meta.className = 'item-meta';
+    const overdue = isOverdue(item.due, item.done);
+    const due = document.createElement('span'); due.className = 'due-badge' + (overdue ? ' overdue' : '');
+    due.textContent = item.due ? (overdue ? 'Overdue — ' : 'Due ') + isoToDMY(item.due) : 'No due date';
+    meta.appendChild(due);
+    const pr = document.createElement('span');
+    pr.style.color = item.priority ? 'var(--priority-' + item.priority + ')' : 'var(--ink-soft)';
+    pr.style.fontWeight = '600';
+    pr.textContent = item.priority ? PRIORITY_TEXT[item.priority] + ' priority' : 'No priority';
+    meta.appendChild(pr);
+    if (item.storyPoints) {
+      const pts = document.createElement('span'); pts.textContent = item.storyPoints + ' pts';
+      meta.appendChild(pts);
+    }
+    body.appendChild(meta);
+    row.appendChild(body);
+    li.appendChild(row);
+    return li;
+  }
+  function buildScrumPdfSection(ws) {
+    const panel = document.createElement('div'); panel.className = 'workspace-panel';
+    const h1 = document.createElement('h1'); h1.className = 'panel-title'; h1.textContent = ws.name;
+    panel.appendChild(h1);
+    const activeSprint = ws.sprints.find(s => s.id === ws.activeSprintId);
+    if (ws.activeSprintId === 'backlog' || activeSprint) {
+      const scopeNote = document.createElement('div'); scopeNote.className = 'sprint-info';
+      scopeNote.textContent = activeSprint ? 'Sprint: ' + activeSprint.name : 'Backlog (no sprint)';
+      panel.appendChild(scopeNote);
+    }
+    let source = ws.items;
+    if (ws.activeSprintId === 'backlog') source = source.filter(i => !i.sprintId);
+    else if (ws.activeSprintId !== 'all') source = source.filter(i => i.sprintId === ws.activeSprintId);
+    let any = false;
+    STATUSES.forEach(status => {
+      const items = source.filter(i => i.status === status);
+      if (items.length === 0) return;
+      any = true;
+      const label = document.createElement('div'); label.className = 'group-label-row';
+      const span = document.createElement('span'); span.textContent = labels[STATUS_LABEL_KEY[status]];
+      label.appendChild(span);
+      panel.appendChild(label);
+      const ul = document.createElement('ul'); ul.className = 'items';
+      items.forEach(item => ul.appendChild(buildScrumPdfItemRow(item)));
+      panel.appendChild(ul);
+    });
+    if (!any) {
+      const empty = document.createElement('div'); empty.className = 'empty-state'; empty.textContent = 'Nothing tracked yet.';
+      panel.appendChild(empty);
+    }
+    return panel;
+  }
+  function buildPdfScrumContent(container) {
+    container.innerHTML = '';
+    workspaces.filter(w => activeWorkspaceIds.includes(w.id)).forEach(ws => {
+      container.appendChild(buildScrumPdfSection(ws));
+    });
+  }
+
+  // Preview shows what will be saved; the actual save goes straight to a native
+  // save-location dialog and a dialog-less WebKit print-to-file — no OS print dialog.
+  let pdfStyle = 'list';
+  const pdfScrumContent = document.getElementById('pdfScrumContent');
+  async function exportPdf() {
+    let path;
+    try {
+      path = await invoke('plugin:dialog|save', {
+        options: {
+          title: 'Save as PDF',
+          defaultPath: 'task-tracker-' + isoToDMY(todayIso()) + '.pdf',
+          filters: [{ name: 'PDF', extensions: ['pdf'] }]
+        }
+      });
+    } catch (e) { console.error('Save dialog failed', e); window.alert('Could not open the save dialog.'); return; }
+    if (!path) return;
+    if (pdfStyle === 'scrum') buildPdfScrumContent(pdfScrumContent);
+    document.body.classList.toggle('pdf-style-scrum', pdfStyle === 'scrum');
+    try {
+      await invoke('export_pdf', { path: path });
+      closePrintPreview();
+    } catch (e) { console.error('Failed to export PDF', e); window.alert('Could not save the PDF.'); }
+  }
+
+  const printPreviewOverlay = document.getElementById('printPreviewOverlay');
+  const printPreviewContent = document.getElementById('printPreviewContent');
+  const pdfStyleListBtn = document.getElementById('pdfStyleListBtn');
+  const pdfStyleScrumBtn = document.getElementById('pdfStyleScrumBtn');
+  const pdfSprintSelect = document.getElementById('pdfSprintSelect');
+
+  // Sprint names, deduped, across every workspace currently open in the preview — selecting
+  // one applies it (by name) to each of those workspaces so the preview (and the real board/
+  // list behind it) update live, without needing a separate "preview-only" filter to track.
+  function populatePdfSprintSelect() {
+    const activeWs = workspaces.filter(w => activeWorkspaceIds.includes(w.id));
+    const sprintNames = [];
+    activeWs.forEach(w => w.sprints.forEach(s => { if (sprintNames.indexOf(s.name) === -1) sprintNames.push(s.name); }));
+    if (sprintNames.length === 0) { pdfSprintSelect.style.display = 'none'; pdfSprintSelect.innerHTML = ''; return; }
+    pdfSprintSelect.style.display = '';
+    pdfSprintSelect.innerHTML = '';
+    [['all', 'All tasks'], ['backlog', 'Backlog']].concat(sprintNames.map(n => [n, n])).forEach(pair => {
+      const opt = document.createElement('option'); opt.value = pair[0]; opt.textContent = pair[1];
+      pdfSprintSelect.appendChild(opt);
+    });
+    const firstWs = activeWs[0];
+    let current = 'all';
+    if (firstWs) {
+      if (firstWs.activeSprintId === 'backlog') current = 'backlog';
+      else if (firstWs.activeSprintId !== 'all') {
+        const s = firstWs.sprints.find(s => s.id === firstWs.activeSprintId);
+        if (s) current = s.name;
+      }
+    }
+    pdfSprintSelect.value = current;
+  }
+  function applyPdfSprintSelection(value) {
+    workspaces.filter(w => activeWorkspaceIds.includes(w.id)).forEach(w => {
+      if (value === 'all') w.activeSprintId = 'all';
+      else if (value === 'backlog') w.activeSprintId = 'backlog';
+      else { const match = w.sprints.find(s => s.name === value); w.activeSprintId = match ? match.id : 'all'; }
+    });
+    saveWorkspaces();
+    renderApp();
+  }
+  pdfSprintSelect.addEventListener('change', () => {
+    applyPdfSprintSelection(pdfSprintSelect.value);
+    renderPrintPreviewContent();
+  });
+
+  function renderPrintPreviewContent() {
+    printPreviewContent.innerHTML = '';
+    if (pdfStyle === 'scrum') {
+      buildPdfScrumContent(printPreviewContent);
+    } else {
+      document.querySelectorAll('#panelsContainer .workspace-panel').forEach(panel => {
+        printPreviewContent.appendChild(panel.cloneNode(true));
+      });
+    }
+    printPreviewContent.classList.toggle('hide-completed-print', !includeCompletedToggle.checked);
+    pdfStyleListBtn.classList.toggle('active', pdfStyle === 'list');
+    pdfStyleScrumBtn.classList.toggle('active', pdfStyle === 'scrum');
+    populatePdfSprintSelect();
+  }
+  pdfStyleListBtn.addEventListener('click', () => { pdfStyle = 'list'; renderPrintPreviewContent(); });
+  pdfStyleScrumBtn.addEventListener('click', () => { pdfStyle = 'scrum'; renderPrintPreviewContent(); });
+  function openPrintPreview() {
+    renderPrintPreviewContent();
+    printPreviewOverlay.style.display = 'flex';
+  }
+  function closePrintPreview() { printPreviewOverlay.style.display = 'none'; }
+  document.getElementById('exportBtn').addEventListener('click', openPrintPreview);
+  document.getElementById('printPreviewCloseBtn').addEventListener('click', closePrintPreview);
+  document.getElementById('printPreviewSaveBtn').addEventListener('click', exportPdf);
+  printPreviewOverlay.addEventListener('click', e => { if (e.target === printPreviewOverlay) closePrintPreview(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && printPreviewOverlay.style.display !== 'none') closePrintPreview();
+  });
+
+  // ---- sprint create/edit modal (shared across all open workspace panels) ----
+  let sprintModalTarget = null;
+  const sprintModalOverlay = document.getElementById('sprintModalOverlay');
+  const sprintModalTitle = document.getElementById('sprintModalTitle');
+  const sprintNameInput = document.getElementById('sprintNameInput');
+  const sprintGoalInput = document.getElementById('sprintGoalInput');
+  const sprintStartSlot = document.getElementById('sprintStartSlot');
+  const sprintEndSlot = document.getElementById('sprintEndSlot');
+  let sprintStartField = null, sprintEndField = null;
+
+  function openSprintModal(ws, sprint, onSaved) {
+    sprintModalTarget = { ws: ws, sprint: sprint, onSaved: onSaved };
+    sprintModalTitle.textContent = sprint ? 'Edit sprint' : 'New sprint';
+    sprintNameInput.value = sprint ? sprint.name : '';
+    sprintGoalInput.value = sprint ? sprint.goal : '';
+    sprintStartSlot.innerHTML = ''; sprintEndSlot.innerHTML = '';
+    sprintStartField = buildDateField(sprint ? sprint.startDate : null);
+    sprintEndField = buildDateField(sprint ? sprint.endDate : null);
+    sprintStartSlot.appendChild(sprintStartField.el);
+    sprintEndSlot.appendChild(sprintEndField.el);
+    sprintModalOverlay.style.display = 'flex';
+    setTimeout(() => sprintNameInput.focus(), 0);
+  }
+  function closeSprintModal() { sprintModalOverlay.style.display = 'none'; sprintModalTarget = null; }
+  document.getElementById('sprintCancelBtn').addEventListener('click', closeSprintModal);
+  document.getElementById('sprintSaveBtn').addEventListener('click', () => {
+    if (!sprintModalTarget) return;
+    const name = sprintNameInput.value.trim();
+    if (!name) { sprintNameInput.focus(); return; }
+    const ws = sprintModalTarget.ws, sprint = sprintModalTarget.sprint, onSaved = sprintModalTarget.onSaved;
+    if (sprint) {
+      const oldName = sprint.name, oldGoal = sprint.goal;
+      sprint.name = name; sprint.goal = sprintGoalInput.value.trim();
+      sprint.startDate = sprintStartField.getIso(); sprint.endDate = sprintEndField.getIso();
+      saveWorkspaces();
+      if (sprint.name !== oldName) logActivity('text', 'Renamed sprint "' + oldName + '" to "' + sprint.name + '"', ws.name);
+      if (sprint.goal !== oldGoal) {
+        logActivity('text', sprint.goal
+          ? 'Set goal of sprint "' + sprint.name + '" to "' + sprint.goal + '"'
+          : 'Cleared goal of sprint "' + sprint.name + '"', ws.name);
+      }
+    } else {
+      ws.sprints.push({ id: uid(), name: name, goal: sprintGoalInput.value.trim(), startDate: sprintStartField.getIso(), endDate: sprintEndField.getIso() });
+      saveWorkspaces();
+      logActivity('task', 'Created sprint "' + name + '"', ws.name);
+    }
+    closeSprintModal();
+    onSaved();
+  });
+  sprintModalOverlay.addEventListener('click', e => { if (e.target === sprintModalOverlay) closeSprintModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && sprintModalOverlay.style.display !== 'none') closeSprintModal();
+  });
+
+  // ---- sprint management (rename/delete), independent of the sprint bar's current filter ----
+  const sprintManageOverlay = document.getElementById('sprintManageOverlay');
+  const sprintManageList = document.getElementById('sprintManageList');
+  let sprintManageOnChange = null;
+
+  function renderSprintManageList(ws) {
+    sprintManageList.innerHTML = '';
+    if (ws.sprints.length === 0) {
+      const empty = document.createElement('div'); empty.className = 'sprint-manage-empty'; empty.textContent = 'No sprints yet.';
+      sprintManageList.appendChild(empty);
+      return;
+    }
+    ws.sprints.forEach(sprint => {
+      const row = document.createElement('div'); row.className = 'sprint-manage-row';
+      const info = document.createElement('div'); info.className = 'sprint-manage-row-info';
+      const name = document.createElement('div'); name.className = 'sprint-manage-row-name'; name.textContent = sprint.name;
+      info.appendChild(name);
+      if (sprint.startDate || sprint.endDate || sprint.goal) {
+        const sub = document.createElement('div'); sub.className = 'sprint-manage-row-sub';
+        let text = '';
+        if (sprint.startDate || sprint.endDate) text += (sprint.startDate ? isoToDMY(sprint.startDate) : '?') + ' – ' + (sprint.endDate ? isoToDMY(sprint.endDate) : '?');
+        if (sprint.goal) text += (text ? ' · ' : '') + sprint.goal;
+        sub.textContent = text;
+        info.appendChild(sub);
+      }
+      row.appendChild(info);
+
+      const actions = document.createElement('div'); actions.className = 'sprint-manage-row-actions';
+      const renameBtn = document.createElement('button'); renameBtn.type = 'button'; renameBtn.className = 'chip-btn'; renameBtn.textContent = 'Rename';
+      renameBtn.addEventListener('click', () => {
+        openSprintModal(ws, sprint, () => {
+          renderSprintManageList(ws);
+          if (sprintManageOnChange) sprintManageOnChange();
+        });
+      });
+      const deleteBtn = document.createElement('button'); deleteBtn.type = 'button'; deleteBtn.className = 'chip-btn'; deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', () => {
+        const ok = window.confirm('Delete sprint "' + sprint.name + '"? Its tasks move back to the backlog.');
+        if (!ok) return;
+        ws.items.forEach(i => { if (i.sprintId === sprint.id) i.sprintId = null; });
+        ws.sprints = ws.sprints.filter(s => s.id !== sprint.id);
+        if (ws.activeSprintId === sprint.id) ws.activeSprintId = 'all';
+        saveWorkspaces();
+        logActivity('delete', 'Deleted sprint "' + sprint.name + '" (tasks moved to backlog)', ws.name);
+        renderSprintManageList(ws);
+        if (sprintManageOnChange) sprintManageOnChange();
+      });
+      actions.appendChild(renameBtn); actions.appendChild(deleteBtn);
+      row.appendChild(actions);
+      sprintManageList.appendChild(row);
+    });
+  }
+  function openSprintManageModal(ws, onChange) {
+    sprintManageOnChange = onChange;
+    renderSprintManageList(ws);
+    document.getElementById('sprintManageNewBtn').onclick = () => {
+      openSprintModal(ws, null, () => {
+        renderSprintManageList(ws);
+        if (sprintManageOnChange) sprintManageOnChange();
+      });
+    };
+    sprintManageOverlay.style.display = 'flex';
+  }
+  function closeSprintManageModal() { sprintManageOverlay.style.display = 'none'; }
+  document.getElementById('sprintManageCloseBtn').addEventListener('click', closeSprintManageModal);
+  sprintManageOverlay.addEventListener('click', e => { if (e.target === sprintManageOverlay) closeSprintManageModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && sprintManageOverlay.style.display !== 'none') closeSprintManageModal();
+  });
+
+  document.getElementById('exportBackupBtn').addEventListener('click', exportBackup);
+  document.getElementById('importBackupBtn').addEventListener('click', importBackup);
+
+  const includeCompletedToggle = document.getElementById('includeCompletedToggle');
+  includeCompletedToggle.addEventListener('change', () => {
+    document.body.classList.toggle('hide-completed-print', !includeCompletedToggle.checked);
+    saveExportPrefs(includeCompletedToggle.checked);
+  });
+
+  const themeToggle = document.getElementById('themeToggle');
+  async function applyStoredTheme() {
+    let theme;
+    try { theme = await storeGet(THEME_KEY); } catch (e) {}
+    if (theme === 'dark' || theme === 'light') {
+      document.documentElement.setAttribute('data-theme', theme);
+      themeToggle.textContent = theme === 'dark' ? 'Light' : 'Dark';
+    }
+  }
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const currentlyDark = current === 'dark' || (!current && prefersDark);
+    const next = currentlyDark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    themeToggle.textContent = next === 'dark' ? 'Light' : 'Dark';
+    storeSet(THEME_KEY, next);
+  });
+
+  document.querySelectorAll('.editable[data-key]').forEach(bindEditable);
+
+  document.getElementById('overviewTabBtn').addEventListener('click', () => { sidebarTab = 'overview'; updateSidebarTabs(); });
+  document.getElementById('changesTabBtn').addEventListener('click', () => { sidebarTab = 'changes'; updateSidebarTabs(); renderChangesList(); });
+  document.getElementById('changesFilterSelect').addEventListener('change', renderChangesList);
+  updateSidebarTabs();
+
+  (async function boot() {
+    await initStore();
+    await applyStoredTheme();
+    includeCompletedToggle.checked = await loadExportPrefs();
+    document.body.classList.toggle('hide-completed-print', !includeCompletedToggle.checked);
+    await loadLabels();
+    await loadWorkspaces();
+    await loadActivityLog();
+    renderApp();
+    renderChangesList();
+  })();
+})();
+</script>
+</body>
+</html>
